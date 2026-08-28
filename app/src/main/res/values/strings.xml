@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Voice Recorder</string>
+    <string name="mic_permission_rationale">Necesito acceso al micrófono para grabar audio.</string>
+    <string name="mic_permission_denied">Permiso de micrófono denegado. No puedo grabar sin él.</string>
+    <string name="grant_permission">Conceder permiso</string>
+    <string name="start_recording">Grabar</string>
+    <string name="stop_recording">Detener</string>
+    <string name="recording">Grabando…</string>
+    <string name="recordings">Grabaciones</string>
+    <string name="play">Reproducir</string>
+    <string name="stop">Detener</string>
+    <string name="delete">Eliminar</string>
+    <string name="share">Compartir</string>
+    <string name="no_recordings">No hay grabaciones todavía</string>
+    <string name="notification_title">Grabando audio</string>
+    <string name="notification_text">Toca para volver a la app</string>
+    <string name="notification_channel">Grabación de audio</string>
+    <string name="recording_saved">Grabación guardada</string>
+    <string name="confirm_delete">¿Eliminar esta grabación?</string>
+    <string name="cancel">Cancelar</string>
+    <string name="yes">Sí</string>
+</resources>

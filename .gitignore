@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+app/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# APK/AAB (van como GitHub Release, no en el repo)
+*.apk
+*.aab
+
+# Firma (no versionar)
+keystore.properties
+*.jks
+*.keystore
