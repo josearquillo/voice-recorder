@@ -62,7 +62,7 @@ class RecordingService : Service() {
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             setAudioSamplingRate(44100)
-            setAudioEncodingBitRate(128000)
+            setAudioEncodingBitRate(64000)
             setOutputFile(outputFile!!.absolutePath)
             try {
                 prepare()

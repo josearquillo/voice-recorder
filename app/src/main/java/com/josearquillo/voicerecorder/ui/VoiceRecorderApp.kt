@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.IBinder
@@ -329,6 +330,30 @@ private fun RecordingItem(
         displayName to ""
     }
 
+    // Duracion del archivo
+    val durationText = remember(file) {
+        try {
+            val retriever = MediaMetadataRetriever()
+            retriever.setDataSource(file.absolutePath)
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            retriever.release()
+            val totalSeconds = durationMs / 1000
+            val h = totalSeconds / 3600
+            val m = (totalSeconds % 3600) / 60
+            val s = totalSeconds % 60
+            if (h > 0) String.format("%d:%02d:%02d", h, m, s)
+            else String.format("%d:%02d", m, s)
+        } catch (e: Exception) {
+            "?"
+        }
+    }
+
+    // Tamano
+    val sizeText = remember(file) {
+        val sizeKB = file.length() / 1024
+        if (sizeKB < 1024) "$sizeKB KB" else String.format("%.1f MB", sizeKB / 1024.0)
+    }
+
     Surface(
         color = Surface,
         shape = RoundedCornerShape(12.dp),
@@ -373,10 +398,8 @@ private fun RecordingItem(
                     color = TextSecondary,
                     fontSize = 13.sp
                 )
-                val sizeKB = file.length() / 1024
-                val sizeText = if (sizeKB < 1024) "$sizeKB KB" else "${sizeKB / 1024} MB"
                 Text(
-                    sizeText,
+                    "$durationText  ·  $sizeText",
                     color = TextSecondary,
                     fontSize = 12.sp
                 )

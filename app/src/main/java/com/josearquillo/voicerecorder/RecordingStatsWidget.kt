@@ -97,8 +97,8 @@ class RecordingStatsWidget : AppWidgetProvider() {
         }
         views.setTextViewText(R.id.stats_widget_time, timeText)
 
-        // Tamano estimado: 128 kbps = 16 KB/s
-        val estimatedBytes = elapsedSeconds * 16000
+        // Tamano estimado: 64 kbps = 8 KB/s
+        val estimatedBytes = elapsedSeconds * 8000
         val sizeText = formatSize(estimatedBytes)
         views.setTextViewText(R.id.stats_widget_size, sizeText)
 
