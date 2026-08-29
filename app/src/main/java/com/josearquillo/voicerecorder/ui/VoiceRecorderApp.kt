@@ -635,47 +635,9 @@ private fun PermissionScreen(onRequestPermission: () -> Unit) {
 }
 
 private fun refreshRecordings(context: Context, onResult: (List<File>) -> Unit) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        // API 29+: leer desde MediaStore (Music/Recordings)
-        val recordings = mutableListOf<File>()
-        try {
-            val collection = android.provider.MediaStore.Audio.Media.getContentUri(
-                android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY
-            )
-            val projection = arrayOf(
-                android.provider.MediaStore.Audio.Media._ID,
-                android.provider.MediaStore.Audio.Media.DISPLAY_NAME,
-                android.provider.MediaStore.Audio.Media.DATA
-            )
-            val selection = "${android.provider.MediaStore.Audio.Media.RELATIVE_PATH} = ?"
-            val selectionArgs = arrayOf("Music/Recordings/")
-            val sortOrder = "${android.provider.MediaStore.Audio.Media.DATE_ADDED} DESC"
-
-            context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
-                val dataColumn = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.DATA)
-                while (cursor.moveToNext()) {
-                    val path = cursor.getString(dataColumn)
-                    if (path != null) {
-                        val file = File(path)
-                        if (file.exists()) recordings.add(file)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        onResult(recordings)
-    } else {
-        // API < 29: leer desde carpeta publica
-        @Suppress("DEPRECATION")
-        val dir = File(
-            android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_MUSIC
-            ), "Recordings"
-        )
-        val files = dir.listFiles()?.toList()?.sortedByDescending { it.lastModified() } ?: emptyList()
-        onResult(files)
-    }
+    val dir = File(context.getExternalFilesDir(null), "Recordings")
+    val files = dir.listFiles()?.toList()?.sortedByDescending { it.lastModified() } ?: emptyList()
+    onResult(files)
 }
 
 private fun shareFile(context: Context, file: File) {
