@@ -25,12 +25,12 @@ class RecordingWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_TOGGLE) {
-            if (isRecording) {
+            val isRec = SettingsManager.isRecording(context)
+            if (isRec) {
                 val stopIntent = Intent(context, RecordingService::class.java).apply {
                     action = RecordingService.ACTION_STOP
                 }
                 context.startService(stopIntent)
-                isRecording = false
             } else {
                 val startIntent = Intent(context, RecordingService::class.java).apply {
                     action = RecordingService.ACTION_START
@@ -40,7 +40,6 @@ class RecordingWidget : AppWidgetProvider() {
                 } else {
                     context.startService(startIntent)
                 }
-                isRecording = true
             }
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, RecordingWidget::class.java))
@@ -52,8 +51,9 @@ class RecordingWidget : AppWidgetProvider() {
 
     private fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
         val views = RemoteViews(context.packageName, R.layout.widget_recording)
+        val isRec = SettingsManager.isRecording(context)
 
-        if (isRecording) {
+        if (isRec) {
             // Grabando: verde + icono stop
             views.setInt(R.id.widget_background, "setBackgroundColor", 0xFF22C55E.toInt())
             views.setImageViewResource(R.id.widget_icon, R.drawable.ic_stop_white)

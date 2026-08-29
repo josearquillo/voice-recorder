@@ -26,8 +26,9 @@ class RecordingStatsWidget : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        val isRec = SettingsManager.isRecording(context)
         appWidgetIds.forEach { id ->
-            updateWidget(context, appWidgetManager, id, 0L, RecordingWidget.isRecording)
+            updateWidget(context, appWidgetManager, id, 0L, isRec)
         }
     }
 
@@ -43,12 +44,12 @@ class RecordingStatsWidget : AppWidgetProvider() {
             }
         } else if (intent.action == RecordingWidget.ACTION_TOGGLE) {
             // Tambien permitir toggle desde el widget grande
-            if (RecordingWidget.isRecording) {
+            val isRec = SettingsManager.isRecording(context)
+            if (isRec) {
                 val stopIntent = Intent(context, RecordingService::class.java).apply {
                     action = RecordingService.ACTION_STOP
                 }
                 context.startService(stopIntent)
-                RecordingWidget.isRecording = false
             } else {
                 val startIntent = Intent(context, RecordingService::class.java).apply {
                     action = RecordingService.ACTION_START
@@ -58,12 +59,11 @@ class RecordingStatsWidget : AppWidgetProvider() {
                 } else {
                     context.startService(startIntent)
                 }
-                RecordingWidget.isRecording = true
             }
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, RecordingStatsWidget::class.java))
             ids.forEach { id ->
-                updateWidget(context, manager, id, 0L, RecordingWidget.isRecording)
+                updateWidget(context, manager, id, 0L, !isRec)
             }
         }
     }

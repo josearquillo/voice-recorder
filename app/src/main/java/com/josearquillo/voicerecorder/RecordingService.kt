@@ -42,7 +42,26 @@ class RecordingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> startRecording()
-            ACTION_STOP -> stopRecording()
+            ACTION_STOP -> {
+                // Si el proceso fue matado y recreado, recorder sera null
+                // pero puede haber un archivo temporal en cacheDir que mover
+                if (recorder == null) {
+                    // Buscar archivos REC_*.m4a en cacheDir y moverlos
+                    cacheDir.listFiles { file ->
+                        file.name.startsWith("REC_") && file.name.endsWith(".m4a")
+                    }?.forEach { tempFile ->
+                        if (tempFile.length() > 0) {
+                            moveToPublicStorage(tempFile)
+                        }
+                    }
+                    // Actualizar widgets y estado
+                    RecordingStatsWidget.sendUpdate(this, 0L, false)
+                    SettingsManager.setRecording(this, false)
+                    stopSelf()
+                } else {
+                    stopRecording()
+                }
+            }
         }
         return START_NOT_STICKY
     }
@@ -111,18 +130,14 @@ class RecordingService : Service() {
     }
 
     private fun stopRecording() {
-        // Si no esta grabando, ignorar
-        if (recorder == null) {
-            stopSelf()
-            return
-        }
-
+        // Cancelar timers y handler siempre, aunque recorder sea null
         countdownTimer?.cancel()
         countdownTimer = null
 
         statsHandler?.removeCallbacksAndMessages(null)
         statsHandler = null
 
+        // Detener recorder si existe
         recorder?.apply {
             try {
                 stop()
@@ -141,10 +156,11 @@ class RecordingService : Service() {
         }
         outputFile = null
 
-        // Actualizar widget grande a estado parado
+        // Actualizar widget grande a estado parado SIEMPRE
         RecordingStatsWidget.sendUpdate(this, 0L, false)
         SettingsManager.setRecording(this, false)
 
+        // Cancelar notificacion SIEMPRE
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -197,7 +213,7 @@ class RecordingService : Service() {
                 val values = android.content.ContentValues().apply {
                     put(android.provider.MediaStore.Audio.Media.DISPLAY_NAME, fileName)
                     put(android.provider.MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
-                    put(android.provider.MediaStore.Audio.Media.RELATIVE_PATH, "Music/Recordings")
+                    put(android.provider.MediaStore.Audio.Media.RELATIVE_PATH, "Music/Recordings/")
                 }
                 val collection = android.provider.MediaStore.Audio.Media.getContentUri(
                     android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY
