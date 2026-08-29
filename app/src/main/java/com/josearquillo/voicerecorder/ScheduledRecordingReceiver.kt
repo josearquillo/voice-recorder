@@ -114,8 +114,6 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
         }
 
         private fun startRecordingService(context: Context) {
-            // No iniciar si ya esta grabando
-            if (RecordingWidget.isRecording) return
             val intent = Intent(context, RecordingService::class.java).apply {
                 action = RecordingService.ACTION_START
             }
@@ -124,17 +122,13 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
             } else {
                 context.startService(intent)
             }
-            RecordingWidget.isRecording = true
         }
 
         private fun stopRecordingService(context: Context) {
-            // Solo parar si esta grabando
-            if (!RecordingWidget.isRecording) return
             val intent = Intent(context, RecordingService::class.java).apply {
                 action = RecordingService.ACTION_STOP
             }
             context.startService(intent)
-            RecordingWidget.isRecording = false
         }
     }
 

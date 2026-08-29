@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.josearquillo.voicerecorder.RecordingService
+import com.josearquillo.voicerecorder.SettingsManager
 import com.josearquillo.voicerecorder.ui.theme.*
 import java.io.File
 import java.text.SimpleDateFormat
@@ -92,6 +93,7 @@ fun VoiceRecorderApp() {
     }
 
     LaunchedEffect(Unit) {
+        isRecording = SettingsManager.isRecording(context)
         hasMicPermission = ContextCompat.checkSelfPermission(
             context, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
@@ -190,6 +192,7 @@ fun VoiceRecorderApp() {
                         }
                         context.startService(intent)
                         isRecording = false
+                        SettingsManager.setRecording(context, false)
                     } else {
                         val intent = Intent(context, RecordingService::class.java).apply {
                             action = RecordingService.ACTION_START
@@ -200,6 +203,7 @@ fun VoiceRecorderApp() {
                             context.startService(intent)
                         }
                         isRecording = true
+                        SettingsManager.setRecording(context, true)
                     }
                 }
             )

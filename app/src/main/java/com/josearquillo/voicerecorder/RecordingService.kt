@@ -48,6 +48,9 @@ class RecordingService : Service() {
     }
 
     private fun startRecording() {
+        // Si ya esta grabando, ignorar
+        if (recorder != null) return
+
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val fileName = "REC_$timestamp.m4a"
 
@@ -77,6 +80,7 @@ class RecordingService : Service() {
         }
 
         startForeground(NOTIFICATION_ID, createNotification())
+        SettingsManager.setRecording(this, true)
 
         // Auto-corte: temporizador que detiene la grabacion al llegar al limite
         val maxMinutes = SettingsManager.getMaxDurationMinutes(this)
@@ -107,6 +111,12 @@ class RecordingService : Service() {
     }
 
     private fun stopRecording() {
+        // Si no esta grabando, ignorar
+        if (recorder == null) {
+            stopSelf()
+            return
+        }
+
         countdownTimer?.cancel()
         countdownTimer = null
 
@@ -133,6 +143,7 @@ class RecordingService : Service() {
 
         // Actualizar widget grande a estado parado
         RecordingStatsWidget.sendUpdate(this, 0L, false)
+        SettingsManager.setRecording(this, false)
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
