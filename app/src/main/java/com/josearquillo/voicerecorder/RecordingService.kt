@@ -62,38 +62,52 @@ class RecordingService : Service() {
 
     private fun startRecording() {
         // Si ya esta grabando, ignorar
-        if (recorder != null) return
+        if (recorder != null) {
+            android.util.Log.d("RecordingService", "startRecording ignorado: ya grabando")
+            return
+        }
+
+        // LLAMAR startForeground PRIMERO - antes de cualquier otra cosa
+        // Si no, Android mata el servicio en 5 segundos
+        startForeground(NOTIFICATION_ID, createNotification())
+        android.util.Log.d("RecordingService", "startForeground llamado OK")
 
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val fileName = "REC_$timestamp.m4a"
 
-        // Guardar directamente en getExternalFilesDir/Recordings (siempre funciona)
+        // Guardar directamente en getExternalFilesDir/Recordings
         val recordingsDir = File(getExternalFilesDir(null), "Recordings").apply { mkdirs() }
         outputFile = File(recordingsDir, fileName)
 
-        recorder = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            MediaRecorder(this)
-        } else {
-            @Suppress("DEPRECATION")
-            MediaRecorder()
-        }).apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setAudioSamplingRate(44100)
-            setAudioEncodingBitRate(64000)
-            setOutputFile(outputFile!!.absolutePath)
-            try {
+        try {
+            recorder = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }).apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioSamplingRate(44100)
+                setAudioEncodingBitRate(64000)
+                setOutputFile(outputFile!!.absolutePath)
                 prepare()
                 start()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                stopSelf()
-                return
             }
+            android.util.Log.d("RecordingService", "MediaRecorder iniciado OK: ${outputFile!!.absolutePath}")
+        } catch (e: Exception) {
+            android.util.Log.e("RecordingService", "Error MediaRecorder: ${e.message}", e)
+            // Limpiar y parar
+            recorder?.release()
+            recorder = null
+            outputFile?.delete()
+            outputFile = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
         }
 
-        startForeground(NOTIFICATION_ID, createNotification())
         SettingsManager.setRecording(this, true)
 
         // Actualizar ambos widgets a estado grabando
@@ -150,15 +164,18 @@ class RecordingService : Service() {
         }
         recorder = null
 
-        // Escanear archivo con MediaScanner para que aparezca en exploradores
+        // Escanear archivo con MediaScanner, o eliminar si es demasiado pequeño
         outputFile?.let { file ->
-            if (file.exists() && file.length() > 0) {
+            if (file.exists() && file.length() > 1000) {
                 android.media.MediaScannerConnection.scanFile(
                     this,
                     arrayOf(file.absolutePath),
                     arrayOf("audio/mp4"),
                     null
                 )
+            } else if (file.exists()) {
+                // Archivo demasiado pequeño (< 1KB) - probablemente grabacion fallida
+                file.delete()
             }
         }
         outputFile = null
@@ -260,12 +277,35 @@ class RecordingService : Service() {
     }
 
     override fun onDestroy() {
+        // Si el sistema mata el servicio mientras graba, intentar guardar
+        if (recorder != null) {
+            android.util.Log.d("RecordingService", "onDestroy: guardando grabacion por kill del sistema")
+            try {
+                recorder?.stop()
+            } catch (e: Exception) {
+                android.util.Log.e("RecordingService", "Error stop en onDestroy: ${e.message}")
+            }
+            recorder?.release()
+            recorder = null
+
+            // Escanear archivo
+            outputFile?.let { file ->
+                if (file.exists() && file.length() > 0) {
+                    android.media.MediaScannerConnection.scanFile(
+                        this, arrayOf(file.absolutePath), arrayOf("audio/mp4"), null
+                    )
+                }
+            }
+            outputFile = null
+
+            SettingsManager.setRecording(this, false)
+            RecordingWidget.sendUpdate(this)
+            RecordingStatsWidget.sendUpdate(this, 0L, false)
+        }
         countdownTimer?.cancel()
         countdownTimer = null
         statsHandler?.removeCallbacksAndMessages(null)
         statsHandler = null
-        recorder?.release()
-        recorder = null
         super.onDestroy()
     }
 }
