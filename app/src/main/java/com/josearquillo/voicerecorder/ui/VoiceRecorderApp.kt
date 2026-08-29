@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -50,6 +51,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceRecorderApp() {
     val context = LocalContext.current
@@ -59,9 +61,24 @@ fun VoiceRecorderApp() {
     var recordings by remember { mutableStateOf(listOf<File>()) }
     var currentlyPlaying by remember { mutableStateOf<File?>(null) }
     var showDeleteDialog by remember { mutableStateOf<File?>(null) }
+    var showRenameDialog by remember { mutableStateOf<File?>(null) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var playbackProgress by remember { mutableStateOf(0f) }
     var showSettings by remember { mutableStateOf(false) }
     var showSchedule by remember { mutableStateOf(false) }
+
+    // Actualizar progreso de reproduccion cada 200ms
+    LaunchedEffect(currentlyPlaying) {
+        while (currentlyPlaying != null && mediaPlayer != null) {
+            try {
+                val pos = mediaPlayer?.currentPosition ?: 0
+                val dur = mediaPlayer?.duration ?: 1
+                if (dur > 0) playbackProgress = pos.toFloat() / dur
+            } catch (e: Exception) {}
+            kotlinx.coroutines.delay(200)
+        }
+        playbackProgress = 0f
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -235,6 +252,7 @@ fun VoiceRecorderApp() {
                         RecordingItem(
                             file = file,
                             isPlaying = currentlyPlaying == file,
+                            playbackProgress = if (currentlyPlaying == file) playbackProgress else 0f,
                             onPlay = {
                                 if (currentlyPlaying == file) {
                                     mediaPlayer?.stop()
@@ -256,8 +274,19 @@ fun VoiceRecorderApp() {
                                     currentlyPlaying = file
                                 }
                             },
+                            onSeek = { fraction ->
+                                mediaPlayer?.let { mp ->
+                                    val dur = mp.duration
+                                    if (dur > 0) {
+                                        mp.seekTo((fraction * dur).toInt())
+                                    }
+                                }
+                            },
                             onDelete = {
                                 showDeleteDialog = file
+                            },
+                            onRename = {
+                                showRenameDialog = file
                             },
                             onShare = {
                                 shareFile(context, file)
@@ -334,6 +363,49 @@ fun VoiceRecorderApp() {
             }
         )
     }
+
+    // Dialogo de renombrado
+    showRenameDialog?.let { file ->
+        var newName by remember(file) { mutableStateOf(file.nameWithoutExtension) }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = null },
+            title = { Text("Renombrar grabación") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    singleLine = true,
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = Accent,
+                        focusedBorderColor = Accent,
+                        unfocusedBorderColor = Surface
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newName.isNotBlank() && newName != file.nameWithoutExtension) {
+                        val dir = file.parentFile
+                        val newFile = File(dir, "$newName.m4a")
+                        if (!newFile.exists()) {
+                            file.renameTo(newFile)
+                            refreshRecordings(context) { recordings = it }
+                        }
+                    }
+                    showRenameDialog = null
+                }) {
+                    Text("Guardar", color = Accent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = null }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -368,37 +440,53 @@ private fun RecordButton(isRecording: Boolean, onToggle: () -> Unit) {
 private fun RecordingItem(
     file: File,
     isPlaying: Boolean,
+    playbackProgress: Float,
     onPlay: () -> Unit,
+    onSeek: (Float) -> Unit,
     onDelete: () -> Unit,
+    onRename: () -> Unit,
     onShare: () -> Unit
 ) {
-    val displayName = file.nameWithoutExtension.replace("REC_", "")
-    val (dateText, timeText) = try {
-        val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-        val date = sdf.parse(displayName)
-        val d = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(date ?: Date())
-        val t = SimpleDateFormat("HH:mm", Locale.getDefault()).format(date ?: Date())
-        d to t
-    } catch (e: Exception) {
+    val displayName = file.nameWithoutExtension
+    val isDefaultName = displayName.startsWith("REC_")
+    val (dateText, timeText) = if (isDefaultName) {
+        try {
+            val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+            val date = sdf.parse(displayName.replace("REC_", ""))
+            val d = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(date ?: Date())
+            val t = SimpleDateFormat("HH:mm", Locale.getDefault()).format(date ?: Date())
+            d to t
+        } catch (e: Exception) {
+            displayName to ""
+        }
+    } else {
+        // Nombre personalizado: mostrarlo como titulo
         displayName to ""
     }
 
     // Duracion del archivo
-    val durationText = remember(file) {
+    val durationMs = remember(file) {
         try {
             val retriever = MediaMetadataRetriever()
             retriever.setDataSource(file.absolutePath)
-            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val d = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
             retriever.release()
-            val totalSeconds = durationMs / 1000
-            val h = totalSeconds / 3600
-            val m = (totalSeconds % 3600) / 60
-            val s = totalSeconds % 60
-            if (h > 0) String.format("%d:%02d:%02d", h, m, s)
-            else String.format("%d:%02d", m, s)
+            d
         } catch (e: Exception) {
-            "?"
+            0L
         }
+    }
+
+    // Progreso de reproduccion (actualizado por el padre)
+    val progressMs by remember(file, isPlaying) { mutableStateOf(0L) }
+
+    val durationText = run {
+        val totalSeconds = durationMs / 1000
+        val h = totalSeconds / 3600
+        val m = (totalSeconds % 3600) / 60
+        val s = totalSeconds % 60
+        if (h > 0) String.format("%d:%02d:%02d", h, m, s)
+        else String.format("%d:%02d", m, s)
     }
 
     // Tamano
@@ -412,60 +500,83 @@ private fun RecordingItem(
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(12.dp)
         ) {
-            // Play/Stop
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(if (isPlaying) Accent else Primary)
-                    .clickable { onPlay() },
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
-                    contentDescription = if (isPlaying) "Detener" else "Reproducir",
-                    tint = OnPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
+                // Play/Stop
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(if (isPlaying) Accent else Primary)
+                        .clickable { onPlay() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Detener" else "Reproducir",
+                        tint = OnPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        dateText,
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        timeText,
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        "$durationText  ·  $sizeText",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
+
+                // Renombrar
+                IconButton(onClick = onRename) {
+                    Icon(Icons.Default.Edit, contentDescription = "Renombrar", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+
+                // Compartir
+                IconButton(onClick = onShare) {
+                    Icon(Icons.Default.Share, contentDescription = "Compartir", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+
+                // Eliminar
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Primary, modifier = Modifier.size(20.dp))
+                }
             }
 
-            Spacer(Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    dateText,
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            // Barra de progreso (solo visible mientras reproduce)
+            if (isPlaying && durationMs > 0) {
+                Spacer(Modifier.height(8.dp))
+                Slider(
+                    value = playbackProgress.coerceIn(0f, 1f),
+                    onValueChange = { onSeek(it) },
+                    valueRange = 0f..1f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Accent,
+                        activeTrackColor = Accent,
+                        inactiveTrackColor = Surface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Text(
-                    timeText,
-                    color = TextSecondary,
-                    fontSize = 13.sp
-                )
-                Text(
-                    "$durationText  ·  $sizeText",
-                    color = TextSecondary,
-                    fontSize = 12.sp
-                )
-            }
-
-            // Compartir
-            IconButton(onClick = onShare) {
-                Icon(Icons.Default.Share, contentDescription = "Compartir", tint = TextSecondary, modifier = Modifier.size(20.dp))
-            }
-
-            // Eliminar
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Primary, modifier = Modifier.size(20.dp))
             }
         }
     }
@@ -505,9 +616,47 @@ private fun PermissionScreen(onRequestPermission: () -> Unit) {
 }
 
 private fun refreshRecordings(context: Context, onResult: (List<File>) -> Unit) {
-    val dir = File(context.getExternalFilesDir(null), "Recordings")
-    val files = dir.listFiles()?.toList()?.sortedByDescending { it.lastModified() } ?: emptyList()
-    onResult(files)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // API 29+: leer desde MediaStore (Music/Recordings)
+        val recordings = mutableListOf<File>()
+        try {
+            val collection = android.provider.MediaStore.Audio.Media.getContentUri(
+                android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY
+            )
+            val projection = arrayOf(
+                android.provider.MediaStore.Audio.Media._ID,
+                android.provider.MediaStore.Audio.Media.DISPLAY_NAME,
+                android.provider.MediaStore.Audio.Media.DATA
+            )
+            val selection = "${android.provider.MediaStore.Audio.Media.RELATIVE_PATH} = ?"
+            val selectionArgs = arrayOf("Music/Recordings/")
+            val sortOrder = "${android.provider.MediaStore.Audio.Media.DATE_ADDED} DESC"
+
+            context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+                val dataColumn = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.DATA)
+                while (cursor.moveToNext()) {
+                    val path = cursor.getString(dataColumn)
+                    if (path != null) {
+                        val file = File(path)
+                        if (file.exists()) recordings.add(file)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        onResult(recordings)
+    } else {
+        // API < 29: leer desde carpeta publica
+        @Suppress("DEPRECATION")
+        val dir = File(
+            android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_MUSIC
+            ), "Recordings"
+        )
+        val files = dir.listFiles()?.toList()?.sortedByDescending { it.lastModified() } ?: emptyList()
+        onResult(files)
+    }
 }
 
 private fun shareFile(context: Context, file: File) {

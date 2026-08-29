@@ -49,8 +49,10 @@ class RecordingService : Service() {
 
     private fun startRecording() {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val recordingsDir = File(getExternalFilesDir(null), "Recordings").apply { mkdirs() }
-        outputFile = File(recordingsDir, "REC_$timestamp.m4a")
+        val fileName = "REC_$timestamp.m4a"
+
+        // Guardar en archivo temporal; al parar, mover a carpeta publica
+        outputFile = File(cacheDir, fileName)
 
         recorder = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(this)
@@ -121,6 +123,14 @@ class RecordingService : Service() {
         }
         recorder = null
 
+        // Mover archivo temporal a carpeta publica (Music/Recordings)
+        outputFile?.let { tempFile ->
+            if (tempFile.exists() && tempFile.length() > 0) {
+                moveToPublicStorage(tempFile)
+            }
+        }
+        outputFile = null
+
         // Actualizar widget grande a estado parado
         RecordingStatsWidget.sendUpdate(this, 0L, false)
 
@@ -164,6 +174,55 @@ class RecordingService : Service() {
             )
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun moveToPublicStorage(tempFile: File) {
+        val fileName = tempFile.name
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // API 29+: MediaStore
+            try {
+                val values = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+                    put(android.provider.MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
+                    put(android.provider.MediaStore.Audio.Media.RELATIVE_PATH, "Music/Recordings")
+                }
+                val collection = android.provider.MediaStore.Audio.Media.getContentUri(
+                    android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY
+                )
+                val uri = contentResolver.insert(collection, values)
+                if (uri != null) {
+                    contentResolver.openOutputStream(uri)?.use { output ->
+                        tempFile.inputStream().use { input ->
+                            input.copyTo(output)
+                        }
+                    }
+                    tempFile.delete()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Si falla, dejar el archivo temporal
+            }
+        } else {
+            // API < 29: copiar directamente a carpeta publica
+            try {
+                @Suppress("DEPRECATION")
+                val recordingsDir = File(
+                    android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_MUSIC
+                    ), "Recordings"
+                ).apply { mkdirs() }
+                val destFile = File(recordingsDir, fileName)
+                tempFile.inputStream().use { input ->
+                    destFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                tempFile.delete()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
