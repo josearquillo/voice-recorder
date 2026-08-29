@@ -244,14 +244,14 @@ fun VoiceRecorderApp() {
                     onClick = {
                         sortOrder = when (sortOrder) {
                             SortOrder.DATE -> SortOrder.NAME
-                            SortOrder.NAME -> SortOrder.DURATION
-                            SortOrder.DURATION -> SortOrder.SIZE
-                            SortOrder.SIZE -> SortOrder.DATE
+                            SortOrder.NAME -> SortOrder.SIZE
+                            SortOrder.SIZE -> SortOrder.DURATION
+                            SortOrder.DURATION -> SortOrder.DATE
                         }
                     },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
-                    Text("Orden: ${sortOrder.label}", color = Accent, fontSize = 12.sp)
+                    Text("↕ ${sortOrder.label}", color = Accent, fontSize = 12.sp)
                 }
             }
         }
@@ -271,13 +271,16 @@ fun VoiceRecorderApp() {
             }
         } else {
             val listState = rememberLazyListState()
+            val sortedRecordings = remember(recordings, sortOrder) {
+                sortRecordings(recordings, sortOrder)
+            }
             Box(modifier = Modifier.weight(1f)) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(sortRecordings(recordings, sortOrder)) { file ->
+                    items(sortedRecordings, key = { it.absolutePath }) { file ->
                         RecordingItem(
                             file = file,
                             isPlaying = currentlyPlaying == file,
@@ -748,7 +751,20 @@ enum class SortOrder(val label: String) {
 
 private fun sortRecordings(files: List<File>, order: SortOrder): List<File> {
     return when (order) {
-        SortOrder.DATE -> files.sortedByDescending { it.lastModified() }
+        SortOrder.DATE -> files.sortedByDescending { file ->
+            // Para archivos REC_yyyyMMdd_HHmmss, extraer el timestamp del nombre
+            val name = file.nameWithoutExtension
+            if (name.startsWith("REC_")) {
+                try {
+                    val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                    sdf.parse(name.removePrefix("REC_"))?.time ?: file.lastModified()
+                } catch (e: Exception) {
+                    file.lastModified()
+                }
+            } else {
+                file.lastModified()
+            }
+        }
         SortOrder.NAME -> files.sortedBy { it.nameWithoutExtension.lowercase() }
         SortOrder.DURATION -> files.sortedByDescending { file ->
             try {
