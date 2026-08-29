@@ -543,36 +543,40 @@ private fun RecordingItem(
                         color = TextSecondary,
                         fontSize = 13.sp
                     )
-                    // Fila 3: botones de accion
+                    // Fila 3: botones de accion (solo iconos)
                     Row(
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // Editar
-                        TextButton(
-                            onClick = onRename,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onRename() },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = "Renombrar", tint = TextSecondary, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Renombrar", color = TextSecondary, fontSize = 12.sp)
+                            Icon(Icons.Default.Edit, contentDescription = "Renombrar", tint = TextSecondary, modifier = Modifier.size(20.dp))
                         }
                         // Compartir
-                        TextButton(
-                            onClick = onShare,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onShare() },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Share, contentDescription = "Compartir", tint = TextSecondary, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Compartir", color = TextSecondary, fontSize = 12.sp)
+                            Icon(Icons.Default.Share, contentDescription = "Compartir", tint = TextSecondary, modifier = Modifier.size(20.dp))
                         }
                         // Eliminar
-                        TextButton(
-                            onClick = onDelete,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onDelete() },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Primary, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Eliminar", color = Primary, fontSize = 12.sp)
+                            Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Primary, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
