@@ -128,7 +128,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         ) {
             Text(
                 "Valor por defecto: 8 horas.\n" +
-                "Calidad: AAC, 44.1 kHz, 128 kbps.\n" +
+                "Calidad: AAC, 44.1 kHz, 64 kbps.\n" +
                 "Formato: M4A.",
                 color = TextSecondary,
                 fontSize = 13.sp,
