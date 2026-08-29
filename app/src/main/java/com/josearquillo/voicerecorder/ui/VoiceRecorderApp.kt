@@ -1,6 +1,7 @@
 package com.josearquillo.voicerecorder.ui
 
 import android.Manifest
+import com.josearquillo.voicerecorder.RecordingWidget
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -117,6 +118,9 @@ fun VoiceRecorderApp() {
         } else {
             true
         }
+        // Forzar actualizacion del widget al abrir la app
+        // (fix: widget existente puede tener PendingIntent stale)
+        RecordingWidget.sendUpdate(context)
         if (!hasMicPermission || !hasNotifPermission) {
             val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
