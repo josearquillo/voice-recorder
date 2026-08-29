@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
@@ -60,6 +61,7 @@ fun VoiceRecorderApp() {
     var showDeleteDialog by remember { mutableStateOf<File?>(null) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var showSchedule by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -118,6 +120,11 @@ fun VoiceRecorderApp() {
         return
     }
 
+    if (showSchedule) {
+        ScheduleScreen(onBack = { showSchedule = false })
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -143,8 +150,11 @@ fun VoiceRecorderApp() {
                     fontSize = 14.sp
                 )
             }
+            IconButton(onClick = { showSchedule = true }) {
+                Icon(Icons.Default.Schedule, contentDescription = "Programar", tint = TextSecondary, modifier = Modifier.size(24.dp))
+            }
             IconButton(onClick = { showSettings = true }) {
-                Icon(Icons.Default.Settings, contentDescription = "Ajustes", tint = TextSecondary, modifier = Modifier.size(28.dp))
+                Icon(Icons.Default.Settings, contentDescription = "Ajustes", tint = TextSecondary, modifier = Modifier.size(24.dp))
             }
         }
 
