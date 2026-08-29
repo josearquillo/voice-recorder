@@ -20,10 +20,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
@@ -54,6 +56,7 @@ fun VoiceRecorderApp() {
     var currentlyPlaying by remember { mutableStateOf<File?>(null) }
     var showDeleteDialog by remember { mutableStateOf<File?>(null) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -107,24 +110,40 @@ fun VoiceRecorderApp() {
         return
     }
 
+    if (showSettings) {
+        SettingsScreen(onBack = { showSettings = false })
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BgDark)
             .padding(24.dp)
     ) {
-        // Titulo
-        Text(
-            "Voice Recorder",
-            color = TextPrimary,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            "Sin anuncios. Grabación offline.",
-            color = TextSecondary,
-            fontSize = 14.sp
-        )
+        // Header con titulo y boton de ajustes
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    "Voice Recorder",
+                    color = TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Sin anuncios. Grabación offline.",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
+            }
+            IconButton(onClick = { showSettings = true }) {
+                Icon(Icons.Default.Settings, contentDescription = "Ajustes", tint = TextSecondary, modifier = Modifier.size(28.dp))
+            }
+        }
 
         Spacer(Modifier.height(32.dp))
 
@@ -300,12 +319,14 @@ private fun RecordingItem(
     onShare: () -> Unit
 ) {
     val displayName = file.nameWithoutExtension.replace("REC_", "")
-    val formatted = try {
+    val (dateText, timeText) = try {
         val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
         val date = sdf.parse(displayName)
-        SimpleDateFormat("dd/MM/yyyy - HH:mm:ss", Locale.getDefault()).format(date ?: Date())
+        val d = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(date ?: Date())
+        val t = SimpleDateFormat("HH:mm", Locale.getDefault()).format(date ?: Date())
+        d to t
     } catch (e: Exception) {
-        displayName
+        displayName to ""
     }
 
     Surface(
@@ -340,12 +361,17 @@ private fun RecordingItem(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    formatted,
+                    dateText,
                     color = TextPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    timeText,
+                    color = TextSecondary,
+                    fontSize = 13.sp
                 )
                 val sizeKB = file.length() / 1024
                 val sizeText = if (sizeKB < 1024) "$sizeKB KB" else "${sizeKB / 1024} MB"

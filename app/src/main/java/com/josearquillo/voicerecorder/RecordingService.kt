@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.CountDownTimer
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import java.io.File
@@ -27,6 +28,7 @@ class RecordingService : Service() {
 
     private var recorder: MediaRecorder? = null
     private var outputFile: File? = null
+    private var countdownTimer: CountDownTimer? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -69,9 +71,22 @@ class RecordingService : Service() {
         }
 
         startForeground(NOTIFICATION_ID, createNotification())
+
+        // Auto-corte: temporizador que detiene la grabacion al llegar al limite
+        val maxMinutes = SettingsManager.getMaxDurationMinutes(this)
+        val maxMillis = maxMinutes * 60_000L
+        countdownTimer = object : CountDownTimer(maxMillis, 1000) {
+            override fun onTick(millisUntilFinished: Long) {}
+            override fun onFinish() {
+                stopRecording()
+            }
+        }.start()
     }
 
     private fun stopRecording() {
+        countdownTimer?.cancel()
+        countdownTimer = null
+
         recorder?.apply {
             try {
                 stop()
@@ -127,6 +142,8 @@ class RecordingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        countdownTimer?.cancel()
+        countdownTimer = null
         recorder?.release()
         recorder = null
         super.onDestroy()
