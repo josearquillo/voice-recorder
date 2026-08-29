@@ -476,9 +476,6 @@ private fun RecordingItem(
         }
     }
 
-    // Progreso de reproduccion (actualizado por el padre)
-    val progressMs by remember(file, isPlaying) { mutableStateOf(0L) }
-
     val durationText = run {
         val totalSeconds = durationMs / 1000
         val h = totalSeconds / 3600

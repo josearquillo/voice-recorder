@@ -25,14 +25,49 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
                 // Alarma de inicio
                 if (s.startMillis > now) {
                     scheduleAlarm(context, alarmManager, s.id, s.startMillis, ACTION_START)
-                } else if (s.endMillis > now) {
-                    // Ya deberia estar grabando, iniciar ahora
-                    startRecordingService(context)
                 }
                 // Alarma de fin
                 if (s.endMillis > now) {
                     scheduleAlarm(context, alarmManager, s.id, s.endMillis, ACTION_STOP)
                 }
+            }
+        }
+
+        fun cancelAll(context: Context) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            // Cancelar alarmas de todas las programaciones conocidas
+            val schedules = ScheduleManager.getSchedules(context)
+            for (s in schedules) {
+                cancelAlarm(context, alarmManager, s.id, ACTION_START)
+                cancelAlarm(context, alarmManager, s.id, ACTION_STOP)
+            }
+        }
+
+        fun cancelSchedule(context: Context, scheduleId: String) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            cancelAlarm(context, alarmManager, scheduleId, ACTION_START)
+            cancelAlarm(context, alarmManager, scheduleId, ACTION_STOP)
+        }
+
+        private fun cancelAlarm(
+            context: Context,
+            alarmManager: AlarmManager,
+            scheduleId: String,
+            action: String
+        ) {
+            val intent = Intent(context, ScheduledRecordingReceiver::class.java).apply {
+                this.action = action
+                putExtra(EXTRA_SCHEDULE_ID, scheduleId)
+            }
+            val requestCode = (scheduleId.hashCode() and 0x7FFFFFFF) +
+                if (action == ACTION_START) 0 else 10000
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, requestCode, intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (pendingIntent != null) {
+                alarmManager.cancel(pendingIntent)
+                pendingIntent.cancel()
             }
         }
 
@@ -79,6 +114,8 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
         }
 
         private fun startRecordingService(context: Context) {
+            // No iniciar si ya esta grabando
+            if (RecordingWidget.isRecording) return
             val intent = Intent(context, RecordingService::class.java).apply {
                 action = RecordingService.ACTION_START
             }
@@ -91,6 +128,8 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
         }
 
         private fun stopRecordingService(context: Context) {
+            // Solo parar si esta grabando
+            if (!RecordingWidget.isRecording) return
             val intent = Intent(context, RecordingService::class.java).apply {
                 action = RecordingService.ACTION_STOP
             }

@@ -108,7 +108,7 @@ fun ScheduleScreen(onBack: () -> Unit) {
         Button(
             onClick = {
                 if (canSchedule) {
-                    ScheduleManager.addSchedule(
+                    val schedule = ScheduleManager.addSchedule(
                         context,
                         startCal!!.timeInMillis,
                         endCal!!.timeInMillis
@@ -181,8 +181,8 @@ fun ScheduleScreen(onBack: () -> Unit) {
                         schedule = schedule,
                         sdf = sdf,
                         onDelete = {
+                            ScheduledRecordingReceiver.cancelSchedule(context, schedule.id)
                             ScheduleManager.removeSchedule(context, schedule.id)
-                            ScheduledRecordingReceiver.scheduleAll(context)
                             schedules = ScheduleManager.getSchedules(context)
                         }
                     )
@@ -215,75 +215,77 @@ private fun DateTimePickers(
 ) {
     val context = LocalContext.current
 
-    when (pickerState) {
-        PickerState.START_DATE -> {
-            val cal = startCal ?: Calendar.getInstance()
-            DatePickerDialog(
-                context,
-                { _, year, month, day ->
-                    val newCal = Calendar.getInstance()
-                    newCal.set(year, month, day, 0, 0, 0)
-                    newCal.set(Calendar.MILLISECOND, 0)
-                    onStartSelected(newCal)
-                    // Pasar al time picker
-                    TimePickerDialog(
-                        context,
-                        { _, hour, minute ->
-                            newCal.set(Calendar.HOUR_OF_DAY, hour)
-                            newCal.set(Calendar.MINUTE, minute)
-                            onStartSelected(newCal)
-                            onDismiss()
-                        },
-                        cal.get(Calendar.HOUR_OF_DAY),
-                        cal.get(Calendar.MINUTE),
-                        true
-                    ).apply {
-                        setOnCancelListener { onDismiss() }
-                        show()
-                    }
-                },
-                cal.get(Calendar.YEAR),
-                cal.get(Calendar.MONTH),
-                cal.get(Calendar.DAY_OF_MONTH)
-            ).apply {
-                setOnCancelListener { onDismiss() }
-                show()
+    // Usar LaunchedEffect para mostrar el dialogo solo una vez por cambio de estado
+    LaunchedEffect(pickerState) {
+        when (pickerState) {
+            PickerState.START_DATE -> {
+                val cal = startCal ?: Calendar.getInstance()
+                DatePickerDialog(
+                    context,
+                    { _, year, month, day ->
+                        val newCal = Calendar.getInstance()
+                        newCal.set(year, month, day, 0, 0, 0)
+                        newCal.set(Calendar.MILLISECOND, 0)
+                        onStartSelected(newCal)
+                        TimePickerDialog(
+                            context,
+                            { _, hour, minute ->
+                                newCal.set(Calendar.HOUR_OF_DAY, hour)
+                                newCal.set(Calendar.MINUTE, minute)
+                                onStartSelected(newCal)
+                                onDismiss()
+                            },
+                            cal.get(Calendar.HOUR_OF_DAY),
+                            cal.get(Calendar.MINUTE),
+                            true
+                        ).apply {
+                            setOnCancelListener { onDismiss() }
+                            show()
+                        }
+                    },
+                    cal.get(Calendar.YEAR),
+                    cal.get(Calendar.MONTH),
+                    cal.get(Calendar.DAY_OF_MONTH)
+                ).apply {
+                    setOnCancelListener { onDismiss() }
+                    show()
+                }
             }
-        }
-        PickerState.END_DATE -> {
-            val cal = endCal ?: Calendar.getInstance()
-            DatePickerDialog(
-                context,
-                { _, year, month, day ->
-                    val newCal = Calendar.getInstance()
-                    newCal.set(year, month, day, 0, 0, 0)
-                    newCal.set(Calendar.MILLISECOND, 0)
-                    onEndSelected(newCal)
-                    TimePickerDialog(
-                        context,
-                        { _, hour, minute ->
-                            newCal.set(Calendar.HOUR_OF_DAY, hour)
-                            newCal.set(Calendar.MINUTE, minute)
-                            onEndSelected(newCal)
-                            onDismiss()
-                        },
-                        cal.get(Calendar.HOUR_OF_DAY),
-                        cal.get(Calendar.MINUTE),
-                        true
-                    ).apply {
-                        setOnCancelListener { onDismiss() }
-                        show()
-                    }
-                },
-                cal.get(Calendar.YEAR),
-                cal.get(Calendar.MONTH),
-                cal.get(Calendar.DAY_OF_MONTH)
-            ).apply {
-                setOnCancelListener { onDismiss() }
-                show()
+            PickerState.END_DATE -> {
+                val cal = endCal ?: Calendar.getInstance()
+                DatePickerDialog(
+                    context,
+                    { _, year, month, day ->
+                        val newCal = Calendar.getInstance()
+                        newCal.set(year, month, day, 0, 0, 0)
+                        newCal.set(Calendar.MILLISECOND, 0)
+                        onEndSelected(newCal)
+                        TimePickerDialog(
+                            context,
+                            { _, hour, minute ->
+                                newCal.set(Calendar.HOUR_OF_DAY, hour)
+                                newCal.set(Calendar.MINUTE, minute)
+                                onEndSelected(newCal)
+                                onDismiss()
+                            },
+                            cal.get(Calendar.HOUR_OF_DAY),
+                            cal.get(Calendar.MINUTE),
+                            true
+                        ).apply {
+                            setOnCancelListener { onDismiss() }
+                            show()
+                        }
+                    },
+                    cal.get(Calendar.YEAR),
+                    cal.get(Calendar.MONTH),
+                    cal.get(Calendar.DAY_OF_MONTH)
+                ).apply {
+                    setOnCancelListener { onDismiss() }
+                    show()
+                }
             }
+            else -> {}
         }
-        else -> {}
     }
 }
 
