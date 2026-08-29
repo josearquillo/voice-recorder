@@ -148,13 +148,12 @@ fun VoiceRecorderApp() {
             .background(BgDark)
             .padding(24.dp)
     ) {
-        // Header con titulo y boton de ajustes
+        // Header con titulo y botones
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     "Voice Recorder",
                     color = TextPrimary,
