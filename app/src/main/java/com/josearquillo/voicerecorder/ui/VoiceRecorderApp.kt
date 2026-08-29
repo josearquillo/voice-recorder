@@ -507,10 +507,10 @@ private fun RecordingItem(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Play/Stop
+                // Izquierda: boton play/stop
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(if (isPlaying) Accent else Primary)
                         .clickable { onPlay() },
@@ -520,46 +520,61 @@ private fun RecordingItem(
                         if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Detener" else "Reproducir",
                         tint = OnPrimary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
                 Spacer(Modifier.width(12.dp))
 
+                // Derecha: info en filas
                 Column(modifier = Modifier.weight(1f)) {
+                    // Fila 1: fecha/hora
                     Text(
-                        dateText,
+                        if (isDefaultName) "$dateText $timeText" else dateText,
                         color = TextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        timeText,
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    )
+                    // Fila 2: duracion y tamano
                     Text(
                         "$durationText  ·  $sizeText",
                         color = TextSecondary,
-                        fontSize = 12.sp
+                        fontSize = 13.sp
                     )
-                }
-
-                // Renombrar
-                IconButton(onClick = onRename) {
-                    Icon(Icons.Default.Edit, contentDescription = "Renombrar", tint = TextSecondary, modifier = Modifier.size(20.dp))
-                }
-
-                // Compartir
-                IconButton(onClick = onShare) {
-                    Icon(Icons.Default.Share, contentDescription = "Compartir", tint = TextSecondary, modifier = Modifier.size(20.dp))
-                }
-
-                // Eliminar
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Primary, modifier = Modifier.size(20.dp))
+                    // Fila 3: botones de accion
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        // Editar
+                        TextButton(
+                            onClick = onRename,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = "Renombrar", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Renombrar", color = TextSecondary, fontSize = 12.sp)
+                        }
+                        // Compartir
+                        TextButton(
+                            onClick = onShare,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "Compartir", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Compartir", color = TextSecondary, fontSize = 12.sp)
+                        }
+                        // Eliminar
+                        TextButton(
+                            onClick = onDelete,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Primary, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Eliminar", color = Primary, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
 
