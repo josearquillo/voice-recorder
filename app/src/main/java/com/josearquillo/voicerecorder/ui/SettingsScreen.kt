@@ -81,7 +81,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
                 Spacer(Modifier.height(20.dp))
 
-                // Slider de horas (1-24)
+                // Slider de horas (1-12)
                 val maxHours = maxMinutes / 60
                 Text(
                     "${maxHours} horas",
@@ -99,8 +99,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         maxMinutes = newMinutes
                         SettingsManager.setMaxDurationMinutes(context, newMinutes)
                     },
-                    valueRange = 1f..24f,
-                    steps = 22, // 1h, 2h, ... 24h
+                    valueRange = 1f..12f,
+                    steps = 10, // 1h, 2h, ... 12h
                     colors = SliderDefaults.colors(
                         thumbColor = Accent,
                         activeTrackColor = Accent,
@@ -113,7 +113,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("1h", color = TextSecondary, fontSize = 12.sp)
-                    Text("24h", color = TextSecondary, fontSize = 12.sp)
+                    Text("12h", color = TextSecondary, fontSize = 12.sp)
                 }
             }
         }
@@ -127,7 +127,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                "Valor por defecto: 8 horas.\n" +
+                "Valor por defecto: 8 horas (rango 1-12).\n" +
                 "Calidad: AAC, 44.1 kHz, 64 kbps.\n" +
                 "Formato: M4A.",
                 color = TextSecondary,

@@ -12,7 +12,7 @@ object SettingsManager {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun getMaxDurationMinutes(context: Context): Int =
-        getPrefs(context).getInt(KEY_MAX_DURATION_MIN, DEFAULT_MAX_DURATION_MIN)
+        getPrefs(context).getInt(KEY_MAX_DURATION_MIN, DEFAULT_MAX_DURATION_MIN).coerceIn(60, 720)
 
     fun setMaxDurationMinutes(context: Context, minutes: Int) {
         getPrefs(context).edit().putInt(KEY_MAX_DURATION_MIN, minutes).apply()
