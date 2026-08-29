@@ -370,17 +370,30 @@ fun VoiceRecorderApp() {
                 val showScrollbar = layoutInfo.visibleItemsInfo.size < layoutInfo.totalItemsCount
 
                 if (showScrollbar) {
-                    val totalHeight = layoutInfo.viewportSize.height.toFloat()
-                    val totalItems = layoutInfo.totalItemsCount.toFloat()
-                    val visibleItems = layoutInfo.visibleItemsInfo.size.toFloat()
-                    val firstOffset = layoutInfo.visibleItemsInfo.firstOrNull()?.offset ?: 0
-                    val itemSize = layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: 1
-                    val contentHeight = totalItems * itemSize
-                    val thumbHeight = (visibleItems / totalItems * totalHeight).coerceAtLeast(30f)
-                    val maxScroll = contentHeight - totalHeight
-                    val thumbY = if (maxScroll > 0) {
-                        (-firstOffset / maxScroll * (totalHeight - thumbHeight)).coerceIn(0f, totalHeight - thumbHeight)
+                    val viewportHeight = layoutInfo.viewportSize.height.toFloat()
+                    val totalItems = layoutInfo.totalItemsCount
+                    val visibleItems = layoutInfo.visibleItemsInfo.size
+
+                    // Proporcion del thumb basada en items visibles vs totales
+                    val thumbRatio = visibleItems.toFloat() / totalItems.toFloat()
+                    val thumbHeight = (thumbRatio * viewportHeight).coerceAtLeast(30f)
+
+                    // Posicion del thumb basada en el primer item visible
+                    val firstVisibleIndex = listState.firstVisibleItemIndex
+                    val firstVisibleOffset = listState.firstVisibleItemScrollOffset
+
+                    // Estimar altura promedio del primer item visible
+                    val avgItemHeight = if (visibleItems > 0) {
+                        val totalVisibleHeight = layoutInfo.visibleItemsInfo.sumOf { it.size }
+                        totalVisibleHeight.toFloat() / visibleItems.toFloat()
+                    } else 1f
+
+                    val scrollPx = firstVisibleIndex * avgItemHeight + firstVisibleOffset
+                    val maxScrollPx = (totalItems - visibleItems) * avgItemHeight
+                    val scrollProgress = if (maxScrollPx > 0) {
+                        (scrollPx / maxScrollPx).coerceIn(0f, 1f)
                     } else 0f
+                    val thumbY = scrollProgress * (viewportHeight - thumbHeight)
 
                     Canvas(
                         modifier = Modifier
