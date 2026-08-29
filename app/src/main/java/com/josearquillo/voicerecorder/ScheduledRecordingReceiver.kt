@@ -120,29 +120,33 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
 
         private fun startRecordingService(context: Context) {
             // Si ya esta grabando, no iniciar otra
-            if (SettingsManager.isRecording(context)) return
-            SettingsManager.setScheduledRecording(context, true)
-            val intent = Intent(context, RecordingService::class.java).apply {
-                action = RecordingService.ACTION_START
+            if (SettingsManager.isRecording(context)) {
+                Log.d("ScheduledReceiver", "No se inicia: ya grabando")
+                return
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+            // Usar WorkManager - puede arrancar foreground service desde background
+            // Calcular duracion: fin - ahora
+            val scheduleId = "" // Se pasaria como extra si fuera necesario
+            val schedules = ScheduleManager.getSchedules(context)
+            val now = System.currentTimeMillis()
+            val active = schedules.filter { it.startMillis <= now && it.endMillis > now }
+            val durationMs = if (active.isNotEmpty()) {
+                active.first().endMillis - now
             } else {
-                context.startService(intent)
+                60_000L // fallback 1 minuto
             }
+            Log.d("ScheduledReceiver", "Iniciando WorkManager, duracion=${durationMs}ms")
+            RecordingWorker.start(context, durationMs)
         }
 
         private fun stopRecordingService(context: Context) {
             // Solo parar si la grabacion en curso fue iniciada por una programacion
-            // (no detener grabaciones manuales del usuario)
             if (!SettingsManager.isScheduledRecording(context)) {
                 Log.d("ScheduledReceiver", "No se detiene: grabacion manual en curso")
                 return
             }
-            val intent = Intent(context, RecordingService::class.java).apply {
-                action = RecordingService.ACTION_STOP
-            }
-            context.startService(intent)
+            Log.d("ScheduledReceiver", "Deteniendo WorkManager")
+            RecordingWorker.stop(context)
         }
     }
 
