@@ -86,7 +86,7 @@ class RecordingService : Service() {
             }
         }.start()
 
-        // Actualizar widget de stats cada 3 segundos (reduce consumo de bateria)
+        // Actualizar widget de stats cada minuto (minimo consumo de bateria)
         recordingStartTime = System.currentTimeMillis()
         statsHandler = Handler(Looper.getMainLooper())
         statsHandler?.post(object : Runnable {
@@ -98,7 +98,7 @@ class RecordingService : Service() {
                         elapsed,
                         true
                     )
-                    statsHandler?.postDelayed(this, 3000)
+                    statsHandler?.postDelayed(this, 60000)
                 }
             }
         })
