@@ -326,7 +326,8 @@ fun VoiceRecorderApp() {
                                     mediaPlayer = MediaPlayer().apply {
                                         setDataSource(file.absolutePath)
                                         prepare()
-                                        setOnCompletionListener {
+                                        setOnCompletionListener { mp ->
+                                            mp.release()
                                             currentlyPlaying = null
                                             mediaPlayer = null
                                             isPaused = false

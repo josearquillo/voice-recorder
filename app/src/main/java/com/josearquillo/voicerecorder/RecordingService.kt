@@ -41,10 +41,8 @@ class RecordingService : Service() {
             ACTION_STOP -> {
                 if (recorder == null) {
                     // Proceso fue matado y recreado: no hay recorder activo
-                    // Los archivos ya estan en getExternalFilesDir/Recordings/ (no en cacheDir)
-                    // Solo limpiar estado
-                    RecordingWidget.sendUpdate(this)
                     SettingsManager.setRecording(this, false)
+                    RecordingWidget.sendUpdate(this)
                     stopSelf()
                 } else {
                     stopRecording()
@@ -158,9 +156,9 @@ class RecordingService : Service() {
         }
         outputFile = null
 
-        // Actualizar widget a estado parado SIEMPRE
-        RecordingWidget.sendUpdate(this)
+        // Actualizar estado ANTES del widget para que lea false
         SettingsManager.setRecording(this, false)
+        RecordingWidget.sendUpdate(this)
 
         // Cancelar notificacion SIEMPRE
         stopForeground(STOP_FOREGROUND_REMOVE)
