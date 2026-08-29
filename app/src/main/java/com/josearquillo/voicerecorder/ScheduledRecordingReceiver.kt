@@ -22,6 +22,11 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
             for (s in schedules) {
+                // Si la programacion ya termino (apagado durante ella), eliminarla
+                if (s.endMillis <= now) {
+                    ScheduleManager.removeSchedule(context, s.id)
+                    continue
+                }
                 // Alarma de inicio
                 if (s.startMillis > now) {
                     scheduleAlarm(context, alarmManager, s.id, s.startMillis, ACTION_START)
@@ -114,6 +119,9 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
         }
 
         private fun startRecordingService(context: Context) {
+            // Si ya esta grabando, no iniciar otra
+            if (SettingsManager.isRecording(context)) return
+            SettingsManager.setScheduledRecording(context, true)
             val intent = Intent(context, RecordingService::class.java).apply {
                 action = RecordingService.ACTION_START
             }
@@ -125,6 +133,12 @@ class ScheduledRecordingReceiver : BroadcastReceiver() {
         }
 
         private fun stopRecordingService(context: Context) {
+            // Solo parar si la grabacion en curso fue iniciada por una programacion
+            // (no detener grabaciones manuales del usuario)
+            if (!SettingsManager.isScheduledRecording(context)) {
+                Log.d("ScheduledReceiver", "No se detiene: grabacion manual en curso")
+                return
+            }
             val intent = Intent(context, RecordingService::class.java).apply {
                 action = RecordingService.ACTION_STOP
             }

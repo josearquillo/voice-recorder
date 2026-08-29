@@ -117,9 +117,16 @@ fun ScheduleScreen(onBack: () -> Unit) {
             endCal!!.timeInMillis > startCal!!.timeInMillis &&
             (endCal!!.timeInMillis - startCal!!.timeInMillis) > 12 * 60 * 60 * 1000L
 
+        // Detectar solapamiento con programaciones existentes
+        val overlapError = startCal != null && endCal != null && canSchedule && schedules.any { s ->
+            val newStart = startCal!!.timeInMillis
+            val newEnd = endCal!!.timeInMillis
+            !(newEnd <= s.startMillis || newStart >= s.endMillis)
+        }
+
         Button(
             onClick = {
-                if (canSchedule) {
+                if (canSchedule && !overlapError) {
                     val schedule = ScheduleManager.addSchedule(
                         context,
                         startCal!!.timeInMillis,
@@ -131,8 +138,8 @@ fun ScheduleScreen(onBack: () -> Unit) {
                     endCal = null
                 }
             },
+            enabled = canSchedule && !overlapError,
             modifier = Modifier.fillMaxWidth(),
-            enabled = canSchedule,
             colors = ButtonDefaults.buttonColors(containerColor = Accent),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -149,6 +156,8 @@ fun ScheduleScreen(onBack: () -> Unit) {
                         "La fecha de fin debe ser posterior a la de inicio"
                     durationError ->
                         "La duración máxima es de 12 horas"
+                    overlapError ->
+                        "Se solapa con otra programación existente"
                     else -> ""
                 },
                 color = Primary,

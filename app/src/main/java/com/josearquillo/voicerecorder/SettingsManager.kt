@@ -7,6 +7,7 @@ object SettingsManager {
     private const val PREFS_NAME = "voice_recorder_settings"
     private const val KEY_MAX_DURATION_MIN = "max_duration_minutes"
     private const val KEY_IS_RECORDING = "is_recording"
+    private const val KEY_IS_SCHEDULED = "is_scheduled_recording"
     private const val DEFAULT_MAX_DURATION_MIN = 480 // 8 horas
 
     private fun getPrefs(context: Context): SharedPreferences =
@@ -24,5 +25,12 @@ object SettingsManager {
 
     fun setRecording(context: Context, recording: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_IS_RECORDING, recording).apply()
+    }
+
+    fun isScheduledRecording(context: Context): Boolean =
+        getPrefs(context).getBoolean(KEY_IS_SCHEDULED, false)
+
+    fun setScheduledRecording(context: Context, scheduled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_IS_SCHEDULED, scheduled).apply()
     }
 }

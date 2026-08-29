@@ -73,10 +73,14 @@ class RecordingService : Service() {
         android.util.Log.d("RecordingService", "startForeground llamado OK")
 
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val fileName = "REC_$timestamp.m4a"
-
-        // Guardar directamente en getExternalFilesDir/Recordings
+        var fileName = "REC_$timestamp.m4a"
+        // Evitar nombres duplicados si se graba dos veces en el mismo segundo
         val recordingsDir = File(getExternalFilesDir(null), "Recordings").apply { mkdirs() }
+        var counter = 1
+        while (File(recordingsDir, fileName).exists()) {
+            fileName = "REC_${timestamp}_$counter.m4a"
+            counter++
+        }
         outputFile = File(recordingsDir, fileName)
 
         try {
@@ -113,6 +117,10 @@ class RecordingService : Service() {
         // Actualizar ambos widgets a estado grabando
         RecordingWidget.sendUpdate(this)
         RecordingStatsWidget.sendUpdate(this, 0L, true)
+
+        // Si el inicio viene del widget/app, marcar como no programada
+        // (el receiver ya la marco como programada si venia de una alarma)
+        // Aqui no podemos saberlo, pero el receiver ya seteo el flag correcto
 
         // Auto-corte + actualizacion de notificacion cada segundo
         val maxMinutes = SettingsManager.getMaxDurationMinutes(this)
@@ -184,6 +192,7 @@ class RecordingService : Service() {
         RecordingWidget.sendUpdate(this)
         RecordingStatsWidget.sendUpdate(this, 0L, false)
         SettingsManager.setRecording(this, false)
+        SettingsManager.setScheduledRecording(this, false)
 
         // Limpiar programaciones pasadas y cancelar alarmas de grabaciones en curso
         cleanPastSchedules()

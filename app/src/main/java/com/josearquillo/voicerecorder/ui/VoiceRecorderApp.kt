@@ -72,6 +72,16 @@ fun VoiceRecorderApp() {
     var showSettings by remember { mutableStateOf(false) }
     var showSchedule by remember { mutableStateOf(false) }
 
+    // Liberar MediaPlayer al salir de la composicion
+    DisposableEffect(Unit) {
+        onDispose {
+            mediaPlayer?.let { mp ->
+                try { mp.stop() } catch (_: Exception) {}
+                mp.release()
+            }
+        }
+    }
+
     // Actualizar progreso de reproduccion cada 200ms
     LaunchedEffect(currentlyPlaying) {
         while (currentlyPlaying != null && mediaPlayer != null) {
@@ -202,6 +212,7 @@ fun VoiceRecorderApp() {
                         val intent = Intent(context, RecordingService::class.java).apply {
                             action = RecordingService.ACTION_START
                         }
+                        SettingsManager.setScheduledRecording(context, false)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             context.startForegroundService(intent)
                         } else {
@@ -426,34 +437,47 @@ fun VoiceRecorderApp() {
     // Dialogo de renombrado
     showRenameDialog?.let { file ->
         var newName by remember(file) { mutableStateOf(file.nameWithoutExtension) }
+        var renameError by remember(file) { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { showRenameDialog = null },
             title = { Text("Renombrar grabación") },
             text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    singleLine = true,
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = Accent,
-                        focusedBorderColor = Accent,
-                        unfocusedBorderColor = Surface
+                Column {
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it; renameError = null },
+                        singleLine = true,
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = Accent,
+                            focusedBorderColor = Accent,
+                            unfocusedBorderColor = Surface
+                        )
                     )
-                )
+                    renameError?.let { error ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(error, color = Primary, fontSize = 12.sp)
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
                     if (newName.isNotBlank() && newName != file.nameWithoutExtension) {
                         val dir = file.parentFile
                         val newFile = File(dir, "$newName.m4a")
-                        if (!newFile.exists()) {
+                        if (newFile.exists()) {
+                            renameError = "Ya existe una grabación con ese nombre"
+                        } else {
                             file.renameTo(newFile)
                             refreshRecordings(context) { recordings = it }
+                            showRenameDialog = null
                         }
+                    } else if (newName.isBlank()) {
+                        renameError = "El nombre no puede estar vacío"
+                    } else {
+                        showRenameDialog = null
                     }
-                    showRenameDialog = null
                 }) {
                     Text("Guardar", color = Accent)
                 }
