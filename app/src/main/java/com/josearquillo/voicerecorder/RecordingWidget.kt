@@ -40,6 +40,8 @@ class RecordingWidget : AppWidgetProvider() {
                     action = RecordingService.ACTION_STOP
                 }
                 context.startService(stopIntent)
+                // Actualizar optimistamente a rojo (el servicio confirmara despues)
+                SettingsManager.setRecording(context, false)
             } else {
                 val startIntent = Intent(context, RecordingService::class.java).apply {
                     action = RecordingService.ACTION_START
@@ -50,6 +52,8 @@ class RecordingWidget : AppWidgetProvider() {
                 } else {
                     context.startService(startIntent)
                 }
+                // Actualizar optimistamente a verde
+                SettingsManager.setRecording(context, true)
             }
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, RecordingWidget::class.java))

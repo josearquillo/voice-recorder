@@ -48,7 +48,6 @@ class RecordingService : Service() {
                     // Los archivos ya estan en getExternalFilesDir/Recordings/ (no en cacheDir)
                     // Solo limpiar estado
                     RecordingWidget.sendUpdate(this)
-                    RecordingStatsWidget.sendUpdate(this, 0L, false)
                     SettingsManager.setRecording(this, false)
                     cleanPastSchedules()
                     stopSelf()
@@ -114,9 +113,8 @@ class RecordingService : Service() {
 
         SettingsManager.setRecording(this, true)
 
-        // Actualizar ambos widgets a estado grabando
+        // Actualizar widget a estado grabando
         RecordingWidget.sendUpdate(this)
-        RecordingStatsWidget.sendUpdate(this, 0L, true)
 
         // Si el inicio viene del widget/app, marcar como no programada
         // (el receiver ya la marco como programada si venia de una alarma)
@@ -134,23 +132,6 @@ class RecordingService : Service() {
                 stopRecording()
             }
         }.start()
-
-        // Actualizar widget de stats cada minuto (minimo consumo de bateria)
-        recordingStartTime = System.currentTimeMillis()
-        statsHandler = Handler(Looper.getMainLooper())
-        statsHandler?.post(object : Runnable {
-            override fun run() {
-                if (recorder != null) {
-                    val elapsed = (System.currentTimeMillis() - recordingStartTime) / 1000
-                    RecordingStatsWidget.sendUpdate(
-                        this@RecordingService,
-                        elapsed,
-                        true
-                    )
-                    statsHandler?.postDelayed(this, 60000)
-                }
-            }
-        })
     }
 
     private fun stopRecording() {
@@ -188,9 +169,8 @@ class RecordingService : Service() {
         }
         outputFile = null
 
-        // Actualizar widgets a estado parado SIEMPRE
+        // Actualizar widget a estado parado SIEMPRE
         RecordingWidget.sendUpdate(this)
-        RecordingStatsWidget.sendUpdate(this, 0L, false)
         SettingsManager.setRecording(this, false)
         SettingsManager.setScheduledRecording(this, false)
 
@@ -321,7 +301,6 @@ class RecordingService : Service() {
 
             SettingsManager.setRecording(this, false)
             RecordingWidget.sendUpdate(this)
-            RecordingStatsWidget.sendUpdate(this, 0L, false)
         }
         countdownTimer?.cancel()
         countdownTimer = null

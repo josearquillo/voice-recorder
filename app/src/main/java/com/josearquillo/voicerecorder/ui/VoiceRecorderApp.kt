@@ -612,14 +612,21 @@ private fun RecordingItem(
 
                 // Derecha: info en filas
                 Column(modifier = Modifier.weight(1f)) {
-                    // Fila 1: fecha/hora
+                    // Fila 1: nombre de la grabacion
                     Text(
-                        if (isDefaultName) "$dateText $timeText" else dateText,
+                        displayName,
                         color = TextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                    // Fila 1b: fecha/hora
+                    Text(
+                        if (isDefaultName) "$dateText $timeText" else dateText,
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        maxLines = 1
                     )
                     // Fila 2: duracion y tamano
                     Text(

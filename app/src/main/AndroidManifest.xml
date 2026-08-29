@@ -58,19 +58,6 @@
         </receiver>
 
         <receiver
-            android:name=".RecordingStatsWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.josearquillo.voicerecorder.UPDATE_STATS" />
-                <action android:name="com.josearquillo.voicerecorder.WIDGET_TOGGLE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_stats_info" />
-        </receiver>
-
-        <receiver
             android:name=".ScheduledRecordingReceiver"
             android:exported="false">
             <intent-filter>
