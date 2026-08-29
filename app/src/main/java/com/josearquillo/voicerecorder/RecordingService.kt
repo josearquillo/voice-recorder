@@ -10,7 +10,9 @@ import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.CountDownTimer
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import java.io.File
 import java.text.SimpleDateFormat
@@ -29,6 +31,8 @@ class RecordingService : Service() {
     private var recorder: MediaRecorder? = null
     private var outputFile: File? = null
     private var countdownTimer: CountDownTimer? = null
+    private var statsHandler: Handler? = null
+    private var recordingStartTime: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -81,11 +85,31 @@ class RecordingService : Service() {
                 stopRecording()
             }
         }.start()
+
+        // Actualizar widget de stats cada segundo
+        recordingStartTime = System.currentTimeMillis()
+        statsHandler = Handler(Looper.getMainLooper())
+        statsHandler?.post(object : Runnable {
+            override fun run() {
+                if (recorder != null) {
+                    val elapsed = (System.currentTimeMillis() - recordingStartTime) / 1000
+                    RecordingStatsWidget.sendUpdate(
+                        this@RecordingService,
+                        elapsed,
+                        true
+                    )
+                    statsHandler?.postDelayed(this, 1000)
+                }
+            }
+        })
     }
 
     private fun stopRecording() {
         countdownTimer?.cancel()
         countdownTimer = null
+
+        statsHandler?.removeCallbacksAndMessages(null)
+        statsHandler = null
 
         recorder?.apply {
             try {
@@ -96,6 +120,10 @@ class RecordingService : Service() {
             release()
         }
         recorder = null
+
+        // Actualizar widget grande a estado parado
+        RecordingStatsWidget.sendUpdate(this, 0L, false)
+
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -144,6 +172,8 @@ class RecordingService : Service() {
     override fun onDestroy() {
         countdownTimer?.cancel()
         countdownTimer = null
+        statsHandler?.removeCallbacksAndMessages(null)
+        statsHandler = null
         recorder?.release()
         recorder = null
         super.onDestroy()
