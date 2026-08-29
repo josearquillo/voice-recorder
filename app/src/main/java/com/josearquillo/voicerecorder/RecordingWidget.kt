@@ -26,8 +26,19 @@ class RecordingWidget : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        // Actualizar inmediatamente para configurar el PendingIntent
+        // (sin esto, el primer toque puede abrir la app en vez de toggle)
         appWidgetIds.forEach { id ->
             updateWidget(context, appWidgetManager, id)
+        }
+    }
+
+    override fun onEnabled(context: Context) {
+        // Forzar update cuando se añade el primer widget
+        val manager = AppWidgetManager.getInstance(context)
+        val ids = manager.getAppWidgetIds(ComponentName(context, RecordingWidget::class.java))
+        ids.forEach { id ->
+            updateWidget(context, manager, id)
         }
     }
 
