@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -60,7 +61,10 @@ fun VoiceRecorderApp() {
     var hasNotifPermission by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
     var recordings by remember { mutableStateOf(listOf<File>()) }
+    var sortOrder by remember { mutableStateOf(SortOrder.DATE) }
     var currentlyPlaying by remember { mutableStateOf<File?>(null) }
+    var isPaused by remember { mutableStateOf(false) }
+    var playbackSpeed by remember { mutableStateOf(1.0f) }
     var showDeleteDialog by remember { mutableStateOf<File?>(null) }
     var showRenameDialog by remember { mutableStateOf<File?>(null) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -79,6 +83,7 @@ fun VoiceRecorderApp() {
             kotlinx.coroutines.delay(200)
         }
         playbackProgress = 0f
+        isPaused = false
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -223,12 +228,33 @@ fun VoiceRecorderApp() {
         Spacer(Modifier.height(32.dp))
 
         // Lista de grabaciones
-        Text(
-            "Grabaciones (${recordings.size})",
-            color = TextSecondary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Grabaciones (${recordings.size})",
+                color = TextSecondary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+            if (recordings.isNotEmpty()) {
+                TextButton(
+                    onClick = {
+                        sortOrder = when (sortOrder) {
+                            SortOrder.DATE -> SortOrder.NAME
+                            SortOrder.NAME -> SortOrder.DURATION
+                            SortOrder.DURATION -> SortOrder.SIZE
+                            SortOrder.SIZE -> SortOrder.DATE
+                        }
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("Orden: ${sortOrder.label}", color = Accent, fontSize = 12.sp)
+                }
+            }
+        }
 
         Spacer(Modifier.height(12.dp))
 
@@ -251,30 +277,57 @@ fun VoiceRecorderApp() {
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(recordings) { file ->
+                    items(sortRecordings(recordings, sortOrder)) { file ->
                         RecordingItem(
                             file = file,
                             isPlaying = currentlyPlaying == file,
+                            isPaused = isPaused,
+                            playbackSpeed = playbackSpeed,
                             playbackProgress = if (currentlyPlaying == file) playbackProgress else 0f,
                             onPlay = {
                                 if (currentlyPlaying == file) {
+                                    // Parar
                                     mediaPlayer?.stop()
                                     mediaPlayer?.release()
                                     mediaPlayer = null
                                     currentlyPlaying = null
+                                    isPaused = false
                                 } else {
+                                    // Iniciar
                                     mediaPlayer?.stop()
                                     mediaPlayer?.release()
+                                    playbackSpeed = 1.0f
                                     mediaPlayer = MediaPlayer().apply {
                                         setDataSource(file.absolutePath)
                                         prepare()
                                         setOnCompletionListener {
                                             currentlyPlaying = null
                                             mediaPlayer = null
+                                            isPaused = false
                                         }
                                         start()
                                     }
                                     currentlyPlaying = file
+                                    isPaused = false
+                                }
+                            },
+                            onPauseToggle = {
+                                mediaPlayer?.let { mp ->
+                                    if (isPaused) {
+                                        mp.start()
+                                        isPaused = false
+                                    } else {
+                                        mp.pause()
+                                        isPaused = true
+                                    }
+                                }
+                            },
+                            onSpeedChange = { speed ->
+                                playbackSpeed = speed
+                                mediaPlayer?.let { mp ->
+                                    try {
+                                        mp.playbackParams = mp.playbackParams.setSpeed(speed)
+                                    } catch (e: Exception) {}
                                 }
                             },
                             onSeek = { fraction ->
@@ -443,8 +496,12 @@ private fun RecordButton(isRecording: Boolean, onToggle: () -> Unit) {
 private fun RecordingItem(
     file: File,
     isPlaying: Boolean,
+    isPaused: Boolean,
+    playbackSpeed: Float,
     playbackProgress: Float,
     onPlay: () -> Unit,
+    onPauseToggle: () -> Unit,
+    onSpeedChange: (Float) -> Unit,
     onSeek: (Float) -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
@@ -582,20 +639,71 @@ private fun RecordingItem(
                 }
             }
 
-            // Barra de progreso (solo visible mientras reproduce)
+            // Barra de progreso + controles (solo visible mientras reproduce)
             if (isPlaying && durationMs > 0) {
                 Spacer(Modifier.height(8.dp))
-                Slider(
-                    value = playbackProgress.coerceIn(0f, 1f),
-                    onValueChange = { onSeek(it) },
-                    valueRange = 0f..1f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Accent,
-                        activeTrackColor = Accent,
-                        inactiveTrackColor = Surface
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Boton pausa/reanudar
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Surface)
+                            .clickable { onPauseToggle() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                            contentDescription = if (isPaused) "Reanudar" else "Pausar",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    // Slider
+                    Slider(
+                        value = playbackProgress.coerceIn(0f, 1f),
+                        onValueChange = { onSeek(it) },
+                        valueRange = 0f..1f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Accent,
+                            activeTrackColor = Accent,
+                            inactiveTrackColor = Surface
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(Modifier.width(8.dp))
+
+                    // Boton velocidad
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Surface)
+                            .clickable {
+                                val next = when (playbackSpeed) {
+                                    1.0f -> 1.5f
+                                    1.5f -> 2.0f
+                                    else -> 1.0f
+                                }
+                                onSpeedChange(next)
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "${playbackSpeed}x",
+                            color = Accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
     }
@@ -634,9 +742,30 @@ private fun PermissionScreen(onRequestPermission: () -> Unit) {
     }
 }
 
+enum class SortOrder(val label: String) {
+    DATE("Fecha"), NAME("Nombre"), DURATION("Duración"), SIZE("Tamaño")
+}
+
+private fun sortRecordings(files: List<File>, order: SortOrder): List<File> {
+    return when (order) {
+        SortOrder.DATE -> files.sortedByDescending { it.lastModified() }
+        SortOrder.NAME -> files.sortedBy { it.nameWithoutExtension.lowercase() }
+        SortOrder.DURATION -> files.sortedByDescending { file ->
+            try {
+                val r = MediaMetadataRetriever()
+                r.setDataSource(file.absolutePath)
+                val d = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                r.release()
+                d
+            } catch (e: Exception) { 0L }
+        }
+        SortOrder.SIZE -> files.sortedByDescending { it.length() }
+    }
+}
+
 private fun refreshRecordings(context: Context, onResult: (List<File>) -> Unit) {
     val dir = File(context.getExternalFilesDir(null), "Recordings")
-    val files = dir.listFiles()?.toList()?.sortedByDescending { it.lastModified() } ?: emptyList()
+    val files = dir.listFiles()?.toList() ?: emptyList()
     onResult(files)
 }
 

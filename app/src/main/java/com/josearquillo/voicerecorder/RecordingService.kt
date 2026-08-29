@@ -100,11 +100,14 @@ class RecordingService : Service() {
         RecordingWidget.sendUpdate(this)
         RecordingStatsWidget.sendUpdate(this, 0L, true)
 
-        // Auto-corte: temporizador que detiene la grabacion al llegar al limite
+        // Auto-corte + actualizacion de notificacion cada segundo
         val maxMinutes = SettingsManager.getMaxDurationMinutes(this)
         val maxMillis = maxMinutes * 60_000L
         countdownTimer = object : CountDownTimer(maxMillis, 1000) {
-            override fun onTick(millisUntilFinished: Long) {}
+            override fun onTick(millisUntilFinished: Long) {
+                val elapsed = (maxMillis - millisUntilFinished) / 1000
+                updateNotificationTime(elapsed)
+            }
             override fun onFinish() {
                 stopRecording()
             }
@@ -171,6 +174,36 @@ class RecordingService : Service() {
         // Cancelar notificacion SIEMPRE
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun updateNotificationTime(elapsedSeconds: Long) {
+        val h = elapsedSeconds / 3600
+        val m = (elapsedSeconds % 3600) / 60
+        val s = elapsedSeconds % 60
+        val timeText = if (h > 0) String.format("%d:%02d:%02d", h, m, s)
+                       else String.format("%02d:%02d", m, s)
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText("Grabando… $timeText")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentIntent(PendingIntent.getActivity(
+                this, 0, Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            ))
+            .addAction(android.R.drawable.ic_media_pause, getString(R.string.stop_recording),
+                PendingIntent.getService(
+                    this, 1, Intent(this, RecordingService::class.java).apply { action = ACTION_STOP },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                ))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .build()
+
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID, notification)
     }
 
     private fun createNotification(): Notification {
