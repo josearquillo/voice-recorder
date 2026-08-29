@@ -185,8 +185,9 @@ class RecordingService : Service() {
         RecordingStatsWidget.sendUpdate(this, 0L, false)
         SettingsManager.setRecording(this, false)
 
-        // Limpiar programaciones pasadas
+        // Limpiar programaciones pasadas y cancelar alarmas de grabaciones en curso
         cleanPastSchedules()
+        cancelActiveStopAlarms()
 
         // Cancelar notificacion SIEMPRE
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -273,6 +274,17 @@ class RecordingService : Service() {
                 ScheduledRecordingReceiver.cancelSchedule(this, s.id)
                 ScheduleManager.removeSchedule(this, s.id)
             }
+        }
+    }
+
+    private fun cancelActiveStopAlarms() {
+        // Si el usuario para manualmente, cancelar alarmas de STOP de programaciones
+        // cuyo inicio ya paso pero cuyo fin esta en el futuro (la grabacion en curso)
+        val now = System.currentTimeMillis()
+        val schedules = ScheduleManager.getSchedules(this)
+        schedules.filter { it.startMillis <= now && it.endMillis > now }.forEach { s ->
+            ScheduledRecordingReceiver.cancelSchedule(this, s.id)
+            ScheduleManager.removeSchedule(this, s.id)
         }
     }
 
