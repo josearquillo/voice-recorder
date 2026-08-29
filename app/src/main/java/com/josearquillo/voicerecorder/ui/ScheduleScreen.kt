@@ -38,6 +38,11 @@ fun ScheduleScreen(onBack: () -> Unit) {
 
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
 
+    // Refrescar programaciones al entrar (pueden haber cambiado)
+    LaunchedEffect(Unit) {
+        schedules = ScheduleManager.getSchedules(context)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -82,17 +87,19 @@ fun ScheduleScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(16.dp))
 
-        // Fin
-        Text("Fin", color = TextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        // Fin (deshabilitado hasta elegir inicio)
+        Text("Fin", color = if (startCal != null) TextSecondary else TextSecondary.copy(alpha = 0.4f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(8.dp))
         OutlinedButton(
             onClick = { pickerState = PickerState.END_DATE },
             modifier = Modifier.fillMaxWidth(),
+            enabled = startCal != null,
             shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Surface)
+            border = androidx.compose.foundation.BorderStroke(1.dp, if (startCal != null) Surface else Surface.copy(alpha = 0.5f))
         ) {
             Text(
                 if (endCal != null) sdf.format(endCal!!.time)
+                else if (startCal == null) "Primero selecciona el inicio"
                 else "Seleccionar fecha y hora de fin",
                 color = if (endCal != null) TextPrimary else TextSecondary,
                 modifier = Modifier.weight(1f)
@@ -103,7 +110,12 @@ fun ScheduleScreen(onBack: () -> Unit) {
 
         val canSchedule = startCal != null && endCal != null &&
             endCal!!.timeInMillis > startCal!!.timeInMillis &&
-            startCal!!.timeInMillis > System.currentTimeMillis()
+            startCal!!.timeInMillis > System.currentTimeMillis() &&
+            (endCal!!.timeInMillis - startCal!!.timeInMillis) <= 12 * 60 * 60 * 1000L
+
+        val durationError = startCal != null && endCal != null &&
+            endCal!!.timeInMillis > startCal!!.timeInMillis &&
+            (endCal!!.timeInMillis - startCal!!.timeInMillis) > 12 * 60 * 60 * 1000L
 
         Button(
             onClick = {
@@ -130,10 +142,15 @@ fun ScheduleScreen(onBack: () -> Unit) {
         if (!canSchedule && startCal != null && endCal != null) {
             Spacer(Modifier.height(8.dp))
             Text(
-                if (startCal!!.timeInMillis <= System.currentTimeMillis())
-                    "La fecha de inicio debe ser futura"
-                else
-                    "La fecha de fin debe ser posterior a la de inicio",
+                when {
+                    startCal!!.timeInMillis <= System.currentTimeMillis() ->
+                        "La fecha de inicio debe ser futura"
+                    endCal!!.timeInMillis <= startCal!!.timeInMillis ->
+                        "La fecha de fin debe ser posterior a la de inicio"
+                    durationError ->
+                        "La duración máxima es de 12 horas"
+                    else -> ""
+                },
                 color = Primary,
                 fontSize = 12.sp
             )

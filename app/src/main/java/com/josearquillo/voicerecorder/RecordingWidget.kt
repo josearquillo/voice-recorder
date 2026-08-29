@@ -14,6 +14,15 @@ class RecordingWidget : AppWidgetProvider() {
     companion object {
         const val ACTION_TOGGLE = "com.josearquillo.voicerecorder.WIDGET_TOGGLE"
         var isRecording = false
+
+        fun sendUpdate(context: Context) {
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(ComponentName(context, RecordingWidget::class.java))
+            val widget = RecordingWidget()
+            ids.forEach { id ->
+                widget.updateWidget(context, manager, id)
+            }
+        }
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -49,7 +58,7 @@ class RecordingWidget : AppWidgetProvider() {
         }
     }
 
-    private fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
+    internal fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
         val views = RemoteViews(context.packageName, R.layout.widget_recording)
         val isRec = SettingsManager.isRecording(context)
 

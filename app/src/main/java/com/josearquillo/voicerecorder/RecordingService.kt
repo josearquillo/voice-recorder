@@ -55,8 +55,10 @@ class RecordingService : Service() {
                         }
                     }
                     // Actualizar widgets y estado
+                    RecordingWidget.sendUpdate(this)
                     RecordingStatsWidget.sendUpdate(this, 0L, false)
                     SettingsManager.setRecording(this, false)
+                    cleanPastSchedules()
                     stopSelf()
                 } else {
                     stopRecording()
@@ -100,6 +102,10 @@ class RecordingService : Service() {
 
         startForeground(NOTIFICATION_ID, createNotification())
         SettingsManager.setRecording(this, true)
+
+        // Actualizar ambos widgets a estado grabando
+        RecordingWidget.sendUpdate(this)
+        RecordingStatsWidget.sendUpdate(this, 0L, true)
 
         // Auto-corte: temporizador que detiene la grabacion al llegar al limite
         val maxMinutes = SettingsManager.getMaxDurationMinutes(this)
@@ -156,9 +162,13 @@ class RecordingService : Service() {
         }
         outputFile = null
 
-        // Actualizar widget grande a estado parado SIEMPRE
+        // Actualizar widgets a estado parado SIEMPRE
+        RecordingWidget.sendUpdate(this)
         RecordingStatsWidget.sendUpdate(this, 0L, false)
         SettingsManager.setRecording(this, false)
+
+        // Limpiar programaciones pasadas
+        cleanPastSchedules()
 
         // Cancelar notificacion SIEMPRE
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -254,6 +264,18 @@ class RecordingService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun cleanPastSchedules() {
+        val now = System.currentTimeMillis()
+        val schedules = ScheduleManager.getSchedules(this)
+        val past = schedules.filter { it.endMillis <= now }
+        if (past.isNotEmpty()) {
+            past.forEach { s ->
+                ScheduledRecordingReceiver.cancelSchedule(this, s.id)
+                ScheduleManager.removeSchedule(this, s.id)
+            }
+        }
+    }
 
     override fun onDestroy() {
         countdownTimer?.cancel()
