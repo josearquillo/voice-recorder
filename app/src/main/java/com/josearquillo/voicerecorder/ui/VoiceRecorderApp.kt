@@ -12,12 +12,14 @@ import android.os.Build
 import android.os.IBinder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -212,42 +214,83 @@ fun VoiceRecorderApp() {
                 )
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(recordings) { file ->
-                    RecordingItem(
-                        file = file,
-                        isPlaying = currentlyPlaying == file,
-                        onPlay = {
-                            if (currentlyPlaying == file) {
-                                mediaPlayer?.stop()
-                                mediaPlayer?.release()
-                                mediaPlayer = null
-                                currentlyPlaying = null
-                            } else {
-                                mediaPlayer?.stop()
-                                mediaPlayer?.release()
-                                mediaPlayer = MediaPlayer().apply {
-                                    setDataSource(file.absolutePath)
-                                    prepare()
-                                    setOnCompletionListener {
-                                        currentlyPlaying = null
-                                        mediaPlayer = null
+            val listState = rememberLazyListState()
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(recordings) { file ->
+                        RecordingItem(
+                            file = file,
+                            isPlaying = currentlyPlaying == file,
+                            onPlay = {
+                                if (currentlyPlaying == file) {
+                                    mediaPlayer?.stop()
+                                    mediaPlayer?.release()
+                                    mediaPlayer = null
+                                    currentlyPlaying = null
+                                } else {
+                                    mediaPlayer?.stop()
+                                    mediaPlayer?.release()
+                                    mediaPlayer = MediaPlayer().apply {
+                                        setDataSource(file.absolutePath)
+                                        prepare()
+                                        setOnCompletionListener {
+                                            currentlyPlaying = null
+                                            mediaPlayer = null
+                                        }
+                                        start()
                                     }
-                                    start()
+                                    currentlyPlaying = file
                                 }
-                                currentlyPlaying = file
+                            },
+                            onDelete = {
+                                showDeleteDialog = file
+                            },
+                            onShare = {
+                                shareFile(context, file)
                             }
-                        },
-                        onDelete = {
-                            showDeleteDialog = file
-                        },
-                        onShare = {
-                            shareFile(context, file)
-                        }
-                    )
+                        )
+                    }
+                }
+
+                // Barra de scroll dibujada manualmente
+                val layoutInfo = listState.layoutInfo
+                val showScrollbar = layoutInfo.visibleItemsInfo.size < layoutInfo.totalItemsCount
+
+                if (showScrollbar) {
+                    val totalHeight = layoutInfo.viewportSize.height.toFloat()
+                    val totalItems = layoutInfo.totalItemsCount.toFloat()
+                    val visibleItems = layoutInfo.visibleItemsInfo.size.toFloat()
+                    val firstOffset = layoutInfo.visibleItemsInfo.firstOrNull()?.offset ?: 0
+                    val itemSize = layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: 1
+                    val contentHeight = totalItems * itemSize
+                    val thumbHeight = (visibleItems / totalItems * totalHeight).coerceAtLeast(30f)
+                    val maxScroll = contentHeight - totalHeight
+                    val thumbY = if (maxScroll > 0) {
+                        (-firstOffset / maxScroll * (totalHeight - thumbHeight)).coerceIn(0f, totalHeight - thumbHeight)
+                    } else 0f
+
+                    Canvas(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .width(4.dp)
+                    ) {
+                        // Pista
+                        drawRect(
+                            color = Surface.copy(alpha = 0.3f),
+                            size = androidx.compose.ui.geometry.Size(size.width, size.height)
+                        )
+                        // Thumb
+                        drawRect(
+                            color = TextSecondary.copy(alpha = 0.6f),
+                            topLeft = androidx.compose.ui.geometry.Offset(0f, thumbY),
+                            size = androidx.compose.ui.geometry.Size(size.width, thumbHeight)
+                        )
+                    }
                 }
             }
         }
