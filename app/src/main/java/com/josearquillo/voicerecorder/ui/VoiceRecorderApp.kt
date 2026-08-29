@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
@@ -70,7 +69,6 @@ fun VoiceRecorderApp() {
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var playbackProgress by remember { mutableStateOf(0f) }
     var showSettings by remember { mutableStateOf(false) }
-    var showSchedule by remember { mutableStateOf(false) }
 
     // Liberar MediaPlayer al salir de la composicion
     DisposableEffect(Unit) {
@@ -154,11 +152,6 @@ fun VoiceRecorderApp() {
         return
     }
 
-    if (showSchedule) {
-        ScheduleScreen(onBack = { showSchedule = false })
-        return
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -182,9 +175,6 @@ fun VoiceRecorderApp() {
                     color = TextSecondary,
                     fontSize = 14.sp
                 )
-            }
-            IconButton(onClick = { showSchedule = true }) {
-                Icon(Icons.Default.Schedule, contentDescription = "Programar", tint = TextSecondary, modifier = Modifier.size(24.dp))
             }
             IconButton(onClick = { showSettings = true }) {
                 Icon(Icons.Default.Settings, contentDescription = "Ajustes", tint = TextSecondary, modifier = Modifier.size(24.dp))
@@ -212,7 +202,6 @@ fun VoiceRecorderApp() {
                         val intent = Intent(context, RecordingService::class.java).apply {
                             action = RecordingService.ACTION_START
                         }
-                        SettingsManager.setScheduledRecording(context, false)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             context.startForegroundService(intent)
                         } else {

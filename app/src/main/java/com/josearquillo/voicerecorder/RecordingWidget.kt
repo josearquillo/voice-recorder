@@ -57,7 +57,6 @@ class RecordingWidget : AppWidgetProvider() {
                 val startIntent = Intent(context, RecordingService::class.java).apply {
                     action = RecordingService.ACTION_START
                 }
-                SettingsManager.setScheduledRecording(context, false)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(startIntent)
                 } else {

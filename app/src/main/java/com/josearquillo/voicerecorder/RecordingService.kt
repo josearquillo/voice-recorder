@@ -49,7 +49,6 @@ class RecordingService : Service() {
                     // Solo limpiar estado
                     RecordingWidget.sendUpdate(this)
                     SettingsManager.setRecording(this, false)
-                    cleanPastSchedules()
                     stopSelf()
                 } else {
                     stopRecording()
@@ -172,11 +171,6 @@ class RecordingService : Service() {
         // Actualizar widget a estado parado SIEMPRE
         RecordingWidget.sendUpdate(this)
         SettingsManager.setRecording(this, false)
-        SettingsManager.setScheduledRecording(this, false)
-
-        // Limpiar programaciones pasadas y cancelar alarmas de grabaciones en curso
-        cleanPastSchedules()
-        cancelActiveStopAlarms()
 
         // Cancelar notificacion SIEMPRE
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -253,29 +247,6 @@ class RecordingService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    private fun cleanPastSchedules() {
-        val now = System.currentTimeMillis()
-        val schedules = ScheduleManager.getSchedules(this)
-        val past = schedules.filter { it.endMillis <= now }
-        if (past.isNotEmpty()) {
-            past.forEach { s ->
-                ScheduledRecordingReceiver.cancelSchedule(this, s.id)
-                ScheduleManager.removeSchedule(this, s.id)
-            }
-        }
-    }
-
-    private fun cancelActiveStopAlarms() {
-        // Si el usuario para manualmente, cancelar alarmas de STOP de programaciones
-        // cuyo inicio ya paso pero cuyo fin esta en el futuro (la grabacion en curso)
-        val now = System.currentTimeMillis()
-        val schedules = ScheduleManager.getSchedules(this)
-        schedules.filter { it.startMillis <= now && it.endMillis > now }.forEach { s ->
-            ScheduledRecordingReceiver.cancelSchedule(this, s.id)
-            ScheduleManager.removeSchedule(this, s.id)
-        }
-    }
 
     override fun onDestroy() {
         // Si el sistema mata el servicio mientras graba, intentar guardar
