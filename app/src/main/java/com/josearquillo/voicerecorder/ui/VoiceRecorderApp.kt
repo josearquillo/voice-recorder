@@ -95,6 +95,34 @@ fun VoiceRecorderApp() {
         isPaused = false
     }
 
+    // Sincronizar isRecording con el servicio real (polling cada 500ms)
+    // Esto detecta: fallo al iniciar, max duracion alcanzada, stop desde widget,
+    // y proceso matado por Android (heartbeat stale)
+    LaunchedEffect(Unit) {
+        while (true) {
+            val actual = SettingsManager.isActuallyRecording(context)
+            if (actual != isRecording) {
+                isRecording = actual
+                if (!actual) {
+                    refreshRecordings(context) { recordings = it }
+                }
+            }
+            kotlinx.coroutines.delay(500)
+        }
+    }
+
+    // Refrescar lista al volver a la app (grabacion puede haber terminado desde widget)
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                refreshRecordings(context) { recordings = it }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -107,7 +135,7 @@ fun VoiceRecorderApp() {
     }
 
     LaunchedEffect(Unit) {
-        isRecording = SettingsManager.isRecording(context)
+        isRecording = SettingsManager.isActuallyRecording(context)
         hasMicPermission = ContextCompat.checkSelfPermission(
             context, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
@@ -132,13 +160,6 @@ fun VoiceRecorderApp() {
         refreshRecordings(context) { recordings = it }
     }
 
-    // Refrescar lista al volver de segundo plano
-    LaunchedEffect(isRecording) {
-        if (!isRecording) {
-            refreshRecordings(context) { recordings = it }
-        }
-    }
-
     if (!hasMicPermission) {
         PermissionScreen {
             val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -152,6 +173,7 @@ fun VoiceRecorderApp() {
     }
 
     if (showSettings) {
+        androidx.activity.compose.BackHandler { showSettings = false }
         SettingsScreen(onBack = { showSettings = false })
         return
     }
@@ -200,8 +222,6 @@ fun VoiceRecorderApp() {
                             action = RecordingService.ACTION_STOP
                         }
                         context.startService(intent)
-                        isRecording = false
-                        SettingsManager.setRecording(context, false)
                     } else {
                         val intent = Intent(context, RecordingService::class.java).apply {
                             action = RecordingService.ACTION_START
@@ -211,9 +231,8 @@ fun VoiceRecorderApp() {
                         } else {
                             context.startService(intent)
                         }
-                        isRecording = true
-                        SettingsManager.setRecording(context, true)
                     }
+                    // No actualizar isRecording aqui - el polling lo sincronizara
                 }
             )
         }
@@ -475,9 +494,12 @@ fun VoiceRecorderApp() {
                         if (newFile.exists()) {
                             renameError = "Ya existe una grabación con ese nombre"
                         } else {
-                            file.renameTo(newFile)
-                            refreshRecordings(context) { recordings = it }
-                            showRenameDialog = null
+                            if (file.renameTo(newFile)) {
+                                refreshRecordings(context) { recordings = it }
+                                showRenameDialog = null
+                            } else {
+                                renameError = "No se pudo renombrar el archivo"
+                            }
                         }
                     } else if (newName.isBlank()) {
                         renameError = "El nombre no puede estar vacío"

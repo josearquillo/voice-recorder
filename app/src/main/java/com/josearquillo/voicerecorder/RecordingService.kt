@@ -10,9 +10,7 @@ import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.CountDownTimer
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import androidx.core.app.NotificationCompat
 import java.io.File
 import java.text.SimpleDateFormat
@@ -31,8 +29,6 @@ class RecordingService : Service() {
     private var recorder: MediaRecorder? = null
     private var outputFile: File? = null
     private var countdownTimer: CountDownTimer? = null
-    private var statsHandler: Handler? = null
-    private var recordingStartTime: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -111,13 +107,10 @@ class RecordingService : Service() {
         }
 
         SettingsManager.setRecording(this, true)
+        SettingsManager.setHeartbeat(this, System.currentTimeMillis())
 
         // Actualizar widget a estado grabando
         RecordingWidget.sendUpdate(this)
-
-        // Si el inicio viene del widget/app, marcar como no programada
-        // (el receiver ya la marco como programada si venia de una alarma)
-        // Aqui no podemos saberlo, pero el receiver ya seteo el flag correcto
 
         // Auto-corte + actualizacion de notificacion cada segundo
         val maxMinutes = SettingsManager.getMaxDurationMinutes(this)
@@ -126,6 +119,7 @@ class RecordingService : Service() {
             override fun onTick(millisUntilFinished: Long) {
                 val elapsed = (maxMillis - millisUntilFinished) / 1000
                 updateNotificationTime(elapsed)
+                SettingsManager.setHeartbeat(this@RecordingService, System.currentTimeMillis())
             }
             override fun onFinish() {
                 stopRecording()
@@ -134,12 +128,8 @@ class RecordingService : Service() {
     }
 
     private fun stopRecording() {
-        // Cancelar timers y handler siempre, aunque recorder sea null
         countdownTimer?.cancel()
         countdownTimer = null
-
-        statsHandler?.removeCallbacksAndMessages(null)
-        statsHandler = null
 
         // Detener recorder si existe
         recorder?.apply {
@@ -260,12 +250,14 @@ class RecordingService : Service() {
             recorder?.release()
             recorder = null
 
-            // Escanear archivo
+            // Escanear archivo, o eliminar si es demasiado pequeño
             outputFile?.let { file ->
-                if (file.exists() && file.length() > 0) {
+                if (file.exists() && file.length() > 1000) {
                     android.media.MediaScannerConnection.scanFile(
                         this, arrayOf(file.absolutePath), arrayOf("audio/mp4"), null
                     )
+                } else if (file.exists()) {
+                    file.delete()
                 }
             }
             outputFile = null
@@ -275,8 +267,6 @@ class RecordingService : Service() {
         }
         countdownTimer?.cancel()
         countdownTimer = null
-        statsHandler?.removeCallbacksAndMessages(null)
-        statsHandler = null
         super.onDestroy()
     }
 }

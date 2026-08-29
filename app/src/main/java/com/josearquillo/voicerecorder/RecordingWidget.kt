@@ -13,7 +13,6 @@ class RecordingWidget : AppWidgetProvider() {
 
     companion object {
         const val ACTION_TOGGLE = "com.josearquillo.voicerecorder.WIDGET_TOGGLE"
-        var isRecording = false
 
         fun sendUpdate(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
@@ -45,15 +44,18 @@ class RecordingWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_TOGGLE) {
-            val isRec = SettingsManager.isRecording(context)
+            val isRec = SettingsManager.isActuallyRecording(context)
             if (isRec) {
+                // Parar: el servicio confirma inmediatamente
                 val stopIntent = Intent(context, RecordingService::class.java).apply {
                     action = RecordingService.ACTION_STOP
                 }
                 context.startService(stopIntent)
-                // Actualizar optimistamente a rojo (el servicio confirmara despues)
                 SettingsManager.setRecording(context, false)
             } else {
+                // Iniciar: NO actualizar optimistamente
+                // El servicio llamara a sendUpdate() tras confirmar que MediaRecorder inicio OK
+                // Si falla, el widget se queda en rojo (correcto)
                 val startIntent = Intent(context, RecordingService::class.java).apply {
                     action = RecordingService.ACTION_START
                 }
@@ -62,8 +64,6 @@ class RecordingWidget : AppWidgetProvider() {
                 } else {
                     context.startService(startIntent)
                 }
-                // Actualizar optimistamente a verde
-                SettingsManager.setRecording(context, true)
             }
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, RecordingWidget::class.java))
@@ -75,7 +75,7 @@ class RecordingWidget : AppWidgetProvider() {
 
     internal fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
         val views = RemoteViews(context.packageName, R.layout.widget_recording)
-        val isRec = SettingsManager.isRecording(context)
+        val isRec = SettingsManager.isActuallyRecording(context)
 
         if (isRec) {
             // Grabando: verde + icono stop
