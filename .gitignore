@@ -18,3 +18,8 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
+
+release.keystore
+*.jks
+local.properties
+
