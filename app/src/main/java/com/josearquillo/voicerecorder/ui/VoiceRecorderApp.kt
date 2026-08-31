@@ -57,10 +57,20 @@ import java.util.Locale
 @Composable
 fun VoiceRecorderApp() {
     val context = LocalContext.current
-    var hasMicPermission by remember { mutableStateOf(false) }
-    var hasNotifPermission by remember { mutableStateOf(false) }
-    var isRecording by remember { mutableStateOf(false) }
-    var recordings by remember { mutableStateOf(listOf<File>()) }
+    var hasMicPermission by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+    }
+    var hasNotifPermission by remember {
+        mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else true)
+    }
+    var isRecording by remember { mutableStateOf(SettingsManager.isActuallyRecording(context)) }
+    var recordings by remember {
+        val dir = File(context.getExternalFilesDir(null), "Recordings")
+        val entries = dir.listFiles()?.map { RecordingEntry(it, getFileDuration(it)) } ?: emptyList()
+        mutableStateOf(entries)
+    }
     var sortOrder by remember { mutableStateOf(SortOrder.DATE) }
     var currentlyPlaying by remember { mutableStateOf<File?>(null) }
     var isPaused by remember { mutableStateOf(false) }
@@ -81,46 +91,53 @@ fun VoiceRecorderApp() {
         }
     }
 
-    // Actualizar progreso de reproduccion cada 200ms
-    LaunchedEffect(currentlyPlaying) {
-        while (currentlyPlaying != null && mediaPlayer != null) {
-            try {
-                val pos = mediaPlayer?.currentPosition ?: 0
-                val dur = mediaPlayer?.duration ?: 1
-                if (dur > 0) playbackProgress = pos.toFloat() / dur
-            } catch (e: Exception) {}
-            kotlinx.coroutines.delay(200)
-        }
-        playbackProgress = 0f
-        isPaused = false
-    }
-
-    // Sincronizar isRecording con el servicio real (polling cada 500ms)
-    // Esto detecta: fallo al iniciar, max duracion alcanzada, stop desde widget,
-    // y proceso matado por Android (heartbeat stale)
-    LaunchedEffect(Unit) {
-        while (true) {
-            val actual = SettingsManager.isActuallyRecording(context)
-            if (actual != isRecording) {
-                isRecording = actual
-                if (!actual) {
-                    refreshRecordings(context) { recordings = it }
+    // Actualizar progreso de reproduccion cada 200ms via Handler (no bloquea Compose idle)
+    DisposableEffect(currentlyPlaying) {
+        if (currentlyPlaying == null) {
+            playbackProgress = 0f
+            isPaused = false
+            onDispose { }
+        } else {
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            val updateRunnable = object : Runnable {
+                override fun run() {
+                    try {
+                        val pos = mediaPlayer?.currentPosition ?: 0
+                        val dur = mediaPlayer?.duration ?: 1
+                        if (dur > 0) playbackProgress = pos.toFloat() / dur
+                    } catch (e: Exception) {}
+                    if (currentlyPlaying != null) {
+                        handler.postDelayed(this, 200)
+                    }
                 }
             }
-            kotlinx.coroutines.delay(500)
+            handler.post(updateRunnable)
+            onDispose { handler.removeCallbacks(updateRunnable) }
         }
     }
 
-    // Refrescar lista al volver a la app (grabacion puede haber terminado desde widget)
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                refreshRecordings(context) { recordings = it }
+    // Escuchar cambios de estado del servicio via BroadcastReceiver (sin polling)
+    DisposableEffect(Unit) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
+                if (intent.action == RecordingService.ACTION_STATE_CHANGED) {
+                    val actual = SettingsManager.isActuallyRecording(context)
+                    if (actual != isRecording) {
+                        isRecording = actual
+                        if (!actual) {
+                            refreshRecordings(context) { recordings = it }
+                        }
+                    }
+                }
             }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        val filter = android.content.IntentFilter(RecordingService.ACTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(receiver, filter)
+        }
+        onDispose { context.unregisterReceiver(receiver) }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -134,20 +151,8 @@ fun VoiceRecorderApp() {
         }
     }
 
-    LaunchedEffect(Unit) {
-        isRecording = SettingsManager.isActuallyRecording(context)
-        hasMicPermission = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-        hasNotifPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
-        // Forzar actualizacion del widget al abrir la app
-        // (fix: widget existente puede tener PendingIntent stale)
+    // Cargar grabaciones y forzar update del widget al abrir la app
+    DisposableEffect(Unit) {
         RecordingWidget.sendUpdate(context)
         if (!hasMicPermission || !hasNotifPermission) {
             val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -157,7 +162,7 @@ fun VoiceRecorderApp() {
             }
             permissionLauncher.launch(perms)
         }
-        refreshRecordings(context) { recordings = it }
+        onDispose { }
     }
 
     if (!hasMicPermission) {
@@ -303,9 +308,11 @@ fun VoiceRecorderApp() {
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(sortedRecordings, key = { it.absolutePath }) { file ->
+                    items(sortedRecordings, key = { it.file.absolutePath }) { entry ->
+                        val file = entry.file
                         RecordingItem(
                             file = file,
+                            durationMs = entry.durationMs,
                             isPlaying = currentlyPlaying == file,
                             isPaused = isPaused,
                             playbackSpeed = playbackSpeed,
@@ -551,6 +558,7 @@ private fun RecordButton(isRecording: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun RecordingItem(
     file: File,
+    durationMs: Long,
     isPlaying: Boolean,
     isPaused: Boolean,
     playbackSpeed: Float,
@@ -580,19 +588,7 @@ private fun RecordingItem(
         displayName to ""
     }
 
-    // Duracion del archivo
-    val durationMs = remember(file) {
-        try {
-            val retriever = MediaMetadataRetriever()
-            retriever.setDataSource(file.absolutePath)
-            val d = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-            retriever.release()
-            d
-        } catch (e: Exception) {
-            0L
-        }
-    }
-
+    // Duracion precomputada fuera de Compose (sin LaunchedEffect)
     val durationText = run {
         val totalSeconds = durationMs / 1000
         val h = totalSeconds / 3600
@@ -809,40 +805,42 @@ enum class SortOrder(val label: String) {
     DATE("Fecha"), NAME("Nombre"), DURATION("Duración"), SIZE("Tamaño")
 }
 
-private fun sortRecordings(files: List<File>, order: SortOrder): List<File> {
+private data class RecordingEntry(val file: File, val durationMs: Long)
+
+private fun getFileDuration(file: File): Long {
+    val r = MediaMetadataRetriever()
+    return try {
+        r.setDataSource(file.absolutePath)
+        r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+    } catch (e: Exception) { 0L }
+    finally { r.release() }
+}
+
+private fun sortRecordings(entries: List<RecordingEntry>, order: SortOrder): List<RecordingEntry> {
     return when (order) {
-        SortOrder.DATE -> files.sortedByDescending { file ->
-            // Para archivos REC_yyyyMMdd_HHmmss, extraer el timestamp del nombre
-            val name = file.nameWithoutExtension
+        SortOrder.DATE -> entries.sortedByDescending { e ->
+            val name = e.file.nameWithoutExtension
             if (name.startsWith("REC_")) {
                 try {
                     val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-                    sdf.parse(name.removePrefix("REC_"))?.time ?: file.lastModified()
-                } catch (e: Exception) {
-                    file.lastModified()
+                    sdf.parse(name.removePrefix("REC_"))?.time ?: e.file.lastModified()
+                } catch (ex: Exception) {
+                    e.file.lastModified()
                 }
             } else {
-                file.lastModified()
+                e.file.lastModified()
             }
         }
-        SortOrder.NAME -> files.sortedBy { it.nameWithoutExtension.lowercase() }
-        SortOrder.DURATION -> files.sortedByDescending { file ->
-            try {
-                val r = MediaMetadataRetriever()
-                r.setDataSource(file.absolutePath)
-                val d = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                r.release()
-                d
-            } catch (e: Exception) { 0L }
-        }
-        SortOrder.SIZE -> files.sortedByDescending { it.length() }
+        SortOrder.NAME -> entries.sortedBy { it.file.nameWithoutExtension.lowercase() }
+        SortOrder.DURATION -> entries.sortedByDescending { it.durationMs }
+        SortOrder.SIZE -> entries.sortedByDescending { it.file.length() }
     }
 }
 
-private fun refreshRecordings(context: Context, onResult: (List<File>) -> Unit) {
+private fun refreshRecordings(context: Context, onResult: (List<RecordingEntry>) -> Unit) {
     val dir = File(context.getExternalFilesDir(null), "Recordings")
-    val files = dir.listFiles()?.toList() ?: emptyList()
-    onResult(files)
+    val entries = dir.listFiles()?.map { RecordingEntry(it, getFileDuration(it)) } ?: emptyList()
+    onResult(entries)
 }
 
 private fun shareFile(context: Context, file: File) {

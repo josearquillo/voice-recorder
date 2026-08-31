@@ -22,8 +22,14 @@ class RecordingService : Service() {
     companion object {
         const val ACTION_START = "com.josearquillo.voicerecorder.START"
         const val ACTION_STOP = "com.josearquillo.voicerecorder.STOP"
+        const val ACTION_STATE_CHANGED = "com.josearquillo.voicerecorder.STATE_CHANGED"
         const val CHANNEL_ID = "recording_channel"
         const val NOTIFICATION_ID = 1
+
+        fun notifyStateChanged(context: Context, recording: Boolean) {
+            val intent = Intent(ACTION_STATE_CHANGED).setPackage(context.packageName)
+            context.sendBroadcast(intent)
+        }
     }
 
     private var recorder: MediaRecorder? = null
@@ -43,6 +49,7 @@ class RecordingService : Service() {
                     // Proceso fue matado y recreado: no hay recorder activo
                     SettingsManager.setRecording(this, false)
                     RecordingWidget.sendUpdate(this)
+                    notifyStateChanged(this, false)
                     stopSelf()
                 } else {
                     stopRecording()
@@ -107,8 +114,9 @@ class RecordingService : Service() {
         SettingsManager.setRecording(this, true)
         SettingsManager.setHeartbeat(this, System.currentTimeMillis())
 
-        // Actualizar widget a estado grabando
+        // Notificar UI y widget
         RecordingWidget.sendUpdate(this)
+        notifyStateChanged(this, true)
 
         // Auto-corte + actualizacion de notificacion cada segundo
         val maxMinutes = SettingsManager.getMaxDurationMinutes(this)
@@ -159,6 +167,7 @@ class RecordingService : Service() {
         // Actualizar estado ANTES del widget para que lea false
         SettingsManager.setRecording(this, false)
         RecordingWidget.sendUpdate(this)
+        notifyStateChanged(this, false)
 
         // Cancelar notificacion SIEMPRE
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -262,6 +271,7 @@ class RecordingService : Service() {
 
             SettingsManager.setRecording(this, false)
             RecordingWidget.sendUpdate(this)
+            notifyStateChanged(this, false)
         }
         countdownTimer?.cancel()
         countdownTimer = null
